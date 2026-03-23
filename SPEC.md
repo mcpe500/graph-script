@@ -1469,18 +1469,23 @@ A plugin may provide:
 Use this identity:
 
 ### Product name
+
 **GraphScript**
 
 ### Tagline
+
 **Composable Visual Scripting for Charts, Diagrams, Algorithms, and 3D**
 
 ### Internal technical name
+
 **GScript**
 
 ### CLI name
+
 **graphscript**
 
 ### File extension
+
 **.gs**
 
 This naming fits your existing repository name and keeps the project easy to discover and remember.

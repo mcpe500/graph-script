@@ -26,12 +26,15 @@ That capability should drive the implementation priorities.
 ## 2. Product identity
 
 ### Recommended product name
+
 **GraphScript**
 
 ### Short name
+
 **GScript**
 
 ### Tagline
+
 **Composable Visual Scripting for Charts, Diagrams, Algorithms, and 3D**
 
 ### Why this name
@@ -740,9 +743,11 @@ Performance matters later, but architecture should not block it.
 To make GraphScript easy and pleasant to use:
 
 ### Rule 1
+
 Prefer semantic blocks over low-level drawing.
 
 ### Rule 2
+
 Allow quick defaults.
 
 Example:
@@ -757,12 +762,15 @@ chart "Sales":
 That should already render nicely without too much styling.
 
 ### Rule 3
+
 Keep naming predictable.
 
 ### Rule 4
+
 Every important feature needs one minimal example.
 
 ### Rule 5
+
 Composition should feel natural, not magical.
 
 ---
@@ -884,12 +892,15 @@ If composition is strong, the project becomes unique.
 ## 22. Immediate next actions
 
 ### Action 1
+
 Commit the spec and program docs.
 
 ### Action 2
+
 Settle core syntax and file extension.
 
 ### Action 3
+
 Implement parser for:
 
 - `use`
@@ -904,6 +915,7 @@ Implement parser for:
 - `page`
 
 ### Action 4
+
 Build one end-to-end example:
 
 - algorithm
@@ -913,6 +925,7 @@ Build one end-to-end example:
 - SVG export
 
 ### Action 5
+
 Only after that, add ERD and infra.
 
 ---

@@ -23,16 +23,18 @@ Once you get confirmation, kick off the autonomous development.
 Each experiment runs in a local development environment. The development script runs for a **fixed time budget per iteration** (e.g., 10 minutes for build + test + render). You launch it simply as: `npm run build && npm run test`.
 
 **What you CAN do:**
+
 - Modify `packages/` — this is the only code you edit. Everything is fair game: parser logic, IR structure, layout engine, renderer implementations, CLI commands.
 - Create new example files in `examples/` to test specific features.
 - Update `program.md` progress tracking (but do not change the core goals without justification).
 
 **What you CANNOT do:**
+
 - Modify `SPEC.md` arbitrarily. The syntax and semantics defined there are the ground truth. If you find a spec contradiction, note it in the log, but prioritize compliance unless the spec is clearly broken.
 - Install new packages or add dependencies without strong justification. Stick to the stack recommended in `program.md` (TypeScript monorepo).
 - Break backward compatibility without a version bump strategy.
 
-**The goal is simple: Maximize Feature Completion & Stability.** Since the roadmap is fixed (`program.md`), you don't need to worry about *what* to build next — follow the phases (MVP -> ERD -> Infra -> 3D). Everything is fair game: refactor the parser, optimize the layout engine, fix rendering bugs. The only constraint is that the code builds, tests pass, and examples render correctly.
+**The goal is simple: Maximize Feature Completion & Stability.** Since the roadmap is fixed (`program.md`), you don't need to worry about _what_ to build next — follow the phases (MVP -> ERD -> Infra -> 3D). Everything is fair game: refactor the parser, optimize the layout engine, fix rendering bugs. The only constraint is that the code builds, tests pass, and examples render correctly.
 
 **Complexity criterion**: All else being equal, simpler is better. A small feature that adds ugly complexity is not worth it. Conversely, removing code and keeping tests passing is a great outcome. When evaluating whether to keep a change, weigh the complexity cost against the feature value. A feature that adds 100 lines of hacky code for a minor visual tweak? Probably not worth it. A refactor that deletes 50 lines and keeps functionality? Definitely keep.
 
@@ -107,9 +109,10 @@ The idea is that you are a completely autonomous developer trying things out. If
 
 **Crashes**: If a run crashes (compile error, runtime exception), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken (e.g. architectural mismatch with SPEC.md), just skip it, log "crash" as the status in the tsv, and move on.
 
-**NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read `SPEC.md` for unimplemented blocks, re-read `program.md` for next milestones, try combining previous near-misses, try more radical architectural refactors. The loop runs until the human interrupts you, period.
+**NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working _indefinitely_ until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read `SPEC.md` for unimplemented blocks, re-read `program.md` for next milestones, try combining previous near-misses, try more radical architectural refactors. The loop runs until the human interrupts you, period.
 
 **Roadmap Progression**:
+
 - Start with **MVP** (Parser, Data, Func, Algo, Chart, Flow, Table, SVG).
 - Once MVP is stable (tests passing, examples rendering), move to **ERD & Infra**.
 - Once ERD/Infra is stable, move to **3D (plot3d, scene3d)**.

@@ -1,0 +1,22 @@
+{
+  "name": "graph-script",
+  "version": "0.0.1",
+  "description": "Composable Visual Scripting for Charts, Diagrams, Algorithms, and 3D",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "fmt": "prettier --write .",
+    "check": "tsc --noEmit"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "prettier": "^3.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
