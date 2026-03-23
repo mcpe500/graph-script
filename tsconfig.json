@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "composite": true,
+    "paths": {
+      "@graphscript/ast": ["./packages/ast/src/index.ts"],
+      "@graphscript/parser": ["./packages/parser/src/index.ts"],
+      "@graphscript/runtime": ["./packages/runtime/src/index.ts"],
+      "@graphscript/ir": ["./packages/ir/src/index.ts"],
+      "@graphscript/layout": ["./packages/layout/src/index.ts"],
+      "@graphscript/renderer-svg": ["./packages/renderer-svg/src/index.ts"],
+      "@graphscript/modules-chart": ["./packages/modules-chart/src/index.ts"],
+      "@graphscript/modules-flow": ["./packages/modules-flow/src/index.ts"],
+      "@graphscript/modules-table": ["./packages/modules-table/src/index.ts"],
+      "@graphscript/cli": ["./packages/cli/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
