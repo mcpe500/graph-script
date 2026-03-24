@@ -57,4 +57,27 @@ describe('Parser', () => {
     expect(program.body.length).toBe(1);
     expect(program.body[0].type).toBe('FlowDeclaration');
   });
+
+  test('parses semantic diagram elements', () => {
+    const parser = new Parser();
+    const program = parser.parse(`diagram "Semantic":
+  header top title="Header"
+  separator split labels=["Bagian Klasik", "Bagian Kuantum"]
+  lane classical section="classical" order=1 columns=1
+  lane quantum section="quantum" order=2 columns=2
+  card energy section="classical" row=1 label="Energi":
+    formula eq value="<H> = Sum_i c_i <P_i>"
+  connector link from="energy.right" to="energy.left"
+`);
+    const diagram = program.body[0] as any;
+    expect(diagram.type).toBe('DiagramDeclaration');
+    expect(diagram.elements.map((element: any) => element.type)).toEqual([
+      'header',
+      'separator',
+      'lane',
+      'lane',
+      'card',
+      'connector',
+    ]);
+  });
 });

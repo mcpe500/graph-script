@@ -25,7 +25,10 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "@mathjax/src": "^4.1.1",
+    "mathjax": "^4.1.1"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",

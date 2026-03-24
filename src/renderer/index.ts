@@ -23,31 +23,56 @@ import { buildPlot3d, renderPlot3d } from './plot3d';
 import { renderPseudoBlock } from './pseudo';
 import { renderScene3d } from './scene3d';
 import { buildTableData, renderTable } from './table';
+import { isValidatableDeclaration, validateAndAdjust, writeValidationReport, ValidationReport } from './validator';
 
 export interface RenderOptions {
   outputDir?: string;
   format?: 'svg';
   baseDir?: string;
+  skipValidation?: boolean;
+  validationReport?: boolean;
 }
 
 export class Renderer {
   constructor(private options: RenderOptions = {}) {}
 
-  render(values: Record<string, GSValue>, traces: Map<string, Trace>, options: RenderOptions = {}): void {
+  async render(values: Record<string, GSValue>, traces: Map<string, Trace>, options: RenderOptions = {}): Promise<void> {
     const outputDir = options.outputDir || this.options.outputDir || './output';
     const baseDir = options.baseDir || this.options.baseDir || process.cwd();
+    const skipValidation = options.skipValidation ?? this.options.skipValidation ?? false;
+    const generateReport = options.validationReport ?? this.options.validationReport ?? false;
+
     fs.mkdirSync(outputDir, { recursive: true });
 
     for (const [name, value] of Object.entries(values)) {
       if (!value || typeof value !== 'object') continue;
       const decl = value as any;
-      const svg = this.renderDeclaration(name, decl, values, traces, baseDir);
+
+      let declToRender = decl;
+      let report: ValidationReport | null = null;
+
+      if (!skipValidation && isValidatableDeclaration(decl.type)) {
+        const result = validateAndAdjust(decl, values, traces);
+        declToRender = result.adjustedDecl;
+        report = result.report;
+
+        if (!result.validation.valid || generateReport) {
+          const reportPath = path.join(outputDir, `${sanitizeFileName(decl.name || name)}-validation.json`);
+          writeValidationReport(report, reportPath, decl.name || name);
+
+          if (!result.validation.valid) {
+            console.warn(`⚠ Validation issues in "${decl.name || name}". See: ${reportPath}`);
+          }
+        }
+      }
+
+      const svg = await this.renderDeclaration(name, declToRender, values, traces, baseDir);
       if (!svg) continue;
-      this.writeSvg(decl.name || name, svg, outputDir, decl.type.replace('Declaration', '').toLowerCase());
+      this.writeSvg(declToRender.name || name, svg, outputDir, declToRender.type.replace('Declaration', '').toLowerCase());
     }
   }
 
-  renderDeclaration(name: string, decl: any, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string = this.options.baseDir || process.cwd()): string | null {
+  async renderDeclaration(name: string, decl: any, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string = this.options.baseDir || process.cwd()): Promise<string | null> {
     if (!decl || typeof decl !== 'object') return null;
     switch (decl.type) {
       case 'ChartDeclaration': {
@@ -66,11 +91,11 @@ export class Renderer {
       case 'PseudoDeclaration':
         return renderPseudoBlock(decl as PseudoDeclaration);
       case 'DiagramDeclaration':
-        return renderDiagram(
+        return await renderDiagram(
           decl as DiagramDeclaration,
           values,
           traces,
-          (target) => this.findAndRenderTarget(target, values, traces, baseDir),
+          async (target) => this.findAndRenderTarget(target, values, traces, baseDir),
           baseDir,
         );
       case 'Scene3dDeclaration':
@@ -80,13 +105,13 @@ export class Renderer {
       case 'InfraDeclaration':
         return renderInfra(decl as InfraDeclaration, values, traces);
       case 'PageDeclaration':
-        return renderPage(decl as PageDeclaration, values, traces, (target) => this.findAndRenderTarget(target, values, traces, baseDir));
+        return await renderPage(decl as PageDeclaration, values, traces, async (target) => this.findAndRenderTarget(target, values, traces, baseDir));
       default:
         return null;
     }
   }
 
-  private findAndRenderTarget(target: string, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string): string | null {
+  private async findAndRenderTarget(target: string, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string): Promise<string | null> {
     const direct = values[target];
     if (direct && typeof direct === 'object') {
       return this.renderDeclaration(target, direct, values, traces, baseDir);

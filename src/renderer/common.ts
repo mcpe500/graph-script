@@ -134,7 +134,7 @@ export function resolveValue(expr: Expression | undefined, values: Record<string
 }
 
 export function svgDocument(width: number, height: number, body: string, background = '#ffffff'): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${background}"/>${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${background}"/>${body}</svg>`;
 }
 
 export function fitIntoBox(innerWidth: number, innerHeight: number, boxWidth: number, boxHeight: number): { scale: number; dx: number; dy: number } {

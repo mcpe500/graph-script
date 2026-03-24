@@ -2,31 +2,62 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DiagramDeclaration, DiagramElement } from '../ast/types';
 import { GSValue, Trace } from '../runtime/values';
-import { asStringArray, escapeXml, extractSvgDocument, fitIntoBox, readBoolean, readNumber, readString, renderFormulaText, resolveValue, round, svgDocument, wrapText } from './common';
+import { asStringArray, escapeXml, extractSvgDocument, fitIntoBox, readBoolean, readNumber, readString, resolveValue, round, svgDocument } from './common';
+import { compileSemanticDiagram } from './diagram-semantic';
+import { readLatexMode, renderDisplayFormula, renderRichTextBlock } from './latex';
 
 interface RenderEmbed {
-  (target: string): string | null;
+  (target: string): Promise<string | null>;
 }
 
-export function renderDiagram(decl: DiagramDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string): string {
+export async function renderDiagram(decl: DiagramDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string): Promise<string> {
   const width = readNumber(resolveValue(decl.properties.width, values, traces), 1280);
-  const height = readNumber(resolveValue(decl.properties.height, values, traces), 720);
+  const requestedHeight = readNumber(resolveValue(decl.properties.height, values, traces), 720);
   const background = readString(resolveValue(decl.properties.background, values, traces), '#f8fafc');
   const title = readString(resolveValue(decl.properties.title, values, traces), decl.name);
   const subtitle = readString(resolveValue(decl.properties.subtitle, values, traces), '');
+  const compiled = compileSemanticDiagram(decl.elements, values, traces, width, requestedHeight);
+  const height = Math.max(requestedHeight, compiled.minHeight);
 
   let body = '';
-  if (title) body += `<text x="${width / 2}" y="58" text-anchor="middle" font-size="36" font-weight="800" fill="#0f172a">${escapeXml(title)}</text>`;
-  if (subtitle) body += `<text x="${width / 2}" y="92" text-anchor="middle" font-size="18" fill="#64748b">${escapeXml(subtitle)}</text>`;
-  body += renderElements(decl.elements, values, traces, renderEmbed, assetBaseDir, 0, 0);
+  if (title) {
+    const renderedTitle = await renderRichTextBlock(title, {
+      x: width / 2,
+      y: 26,
+      maxWidth: width - 120,
+      fontSize: 36,
+      weight: '800',
+      color: '#0f172a',
+      anchor: 'middle',
+      maxLines: 2,
+      latex: 'auto',
+    });
+    body += renderedTitle.svg;
+  }
+  if (subtitle) {
+    const renderedSubtitle = await renderRichTextBlock(subtitle, {
+      x: width / 2,
+      y: 72,
+      maxWidth: width - 160,
+      fontSize: 18,
+      weight: '500',
+      color: '#64748b',
+      anchor: 'middle',
+      maxLines: 3,
+      latex: 'auto',
+    });
+    body += renderedSubtitle.svg;
+  }
+  body += await renderElements(compiled.elements, values, traces, renderEmbed, assetBaseDir, 0, 0);
   return svgDocument(width, height, body, background);
 }
 
-function renderElements(elements: DiagramElement[], values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, offsetX: number, offsetY: number): string {
-  return elements.map((element) => renderElement(element, values, traces, renderEmbed, assetBaseDir, offsetX, offsetY)).join('');
+async function renderElements(elements: DiagramElement[], values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, offsetX: number, offsetY: number): Promise<string> {
+  const rendered = await Promise.all(elements.map((element) => renderElement(element, values, traces, renderEmbed, assetBaseDir, offsetX, offsetY)));
+  return rendered.join('');
 }
 
-function renderElement(element: DiagramElement, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, offsetX: number, offsetY: number): string {
+async function renderElement(element: DiagramElement, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, offsetX: number, offsetY: number): Promise<string> {
   const x = offsetX + readNumber(resolveValue(element.properties.x, values, traces), 0);
   const y = offsetY + readNumber(resolveValue(element.properties.y, values, traces), 0);
   const w = readNumber(resolveValue(element.properties.w, values, traces), 200);
@@ -34,7 +65,8 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
   const defaultStroke = ['line', 'arrow'].includes(element.type) ? '#64748b' : '#cbd5e1';
   const fill = readString(resolveValue(element.properties.fill, values, traces), '#ffffff');
   const stroke = readString(resolveValue(element.properties.stroke, values, traces), defaultStroke);
-  const label = readString(resolveValue(element.properties.label, values, traces), element.name);
+  const labelFallback = ['line', 'arrow', 'image'].includes(element.type) ? '' : element.name;
+  const label = readString(resolveValue(element.properties.label, values, traces), labelFallback);
   const subtitle = readString(resolveValue(element.properties.subtitle, values, traces), '');
   const color = readString(resolveValue(element.properties.color, values, traces), '#0f172a');
   const radius = readNumber(resolveValue(element.properties.radius, values, traces), 16);
@@ -47,6 +79,7 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
   const gridRows = Math.max(1, readNumber(resolveValue(element.properties.rows, values, traces), 4));
   const gridCols = Math.max(1, readNumber(resolveValue(element.properties.cols, values, traces), 4));
   const shadow = readBoolean(resolveValue(element.properties.shadow, values, traces), ['panel', 'box', 'callout', 'badge'].includes(element.type));
+  const latexMode = readLatexMode(resolveValue(element.properties.latex, values, traces), 'auto');
   const dashAttr = dash ? ` stroke-dasharray="${escapeXml(dash)}"` : '';
   const fillOpacityAttr = fillOpacity < 1 ? ` fill-opacity="${round(fillOpacity, 3)}"` : '';
   const strokeOpacityAttr = strokeOpacity < 1 ? ` stroke-opacity="${round(strokeOpacity, 3)}"` : '';
@@ -58,15 +91,35 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
     case 'panel':
     case 'box': {
       svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${dashAttr}${fillOpacityAttr}${strokeOpacityAttr}/>`;
-      const titleLines = wrapText(label, Math.max(10, Math.floor(w / 11)), 3);
-      titleLines.forEach((line, index) => {
-        svg += `<text x="${round(x + w / 2)}" y="${round(y + 34 + index * 20)}" text-anchor="middle" font-size="${Math.max(18, textSize)}" font-weight="800" fill="${color}">${escapeXml(line)}</text>`;
-      });
-      const subtitleLines = wrapText(subtitle, Math.max(12, Math.floor(w / 12)), 4);
-      subtitleLines.forEach((line, index) => {
-        svg += `<text x="${round(x + w / 2)}" y="${round(y + 34 + titleLines.length * 20 + 10 + index * 16)}" text-anchor="middle" font-size="14" fill="#64748b">${escapeXml(line)}</text>`;
-      });
-      if (element.children?.length) svg += renderElements(element.children, values, traces, renderEmbed, assetBaseDir, x, y);
+      const titleBlock = label
+        ? await renderRichTextBlock(label, {
+            x: x + w / 2,
+            y: y + 18,
+            maxWidth: w - 28,
+            fontSize: Math.max(18, textSize),
+            weight: '800',
+            color,
+            anchor: 'middle',
+            maxLines: 3,
+            latex: latexMode,
+          })
+        : { svg: '', height: 0, lines: 0 };
+      svg += titleBlock.svg;
+      const subtitleBlock = subtitle
+        ? await renderRichTextBlock(subtitle, {
+            x: x + w / 2,
+            y: y + 22 + titleBlock.height,
+            maxWidth: w - 32,
+            fontSize: 14,
+            weight: '500',
+            color: '#64748b',
+            anchor: 'middle',
+            maxLines: 4,
+            latex: latexMode,
+          })
+        : { svg: '', height: 0, lines: 0 };
+      svg += subtitleBlock.svg;
+      if (element.children?.length) svg += await renderElements(element.children, values, traces, renderEmbed, assetBaseDir, x, y);
       break;
     }
     case 'grid': {
@@ -96,19 +149,26 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
     case 'text': {
       const value = readString(resolveValue(element.properties.value, values, traces), label);
       const anchor = readString(resolveValue(element.properties.anchor, values, traces), 'start');
-      const lines = value.split(/\n/g);
-      lines.forEach((line, index) => {
-        svg += `<text x="${round(x)}" y="${round(y + index * (textSize + 4))}" text-anchor="${anchor}" font-size="${textSize}" font-weight="${weight}" fill="${color}">${escapeXml(line)}</text>`;
+      const block = await renderRichTextBlock(value, {
+        x,
+        y,
+        maxWidth: w,
+        fontSize: textSize,
+        weight,
+        color,
+        anchor: anchor as 'start' | 'middle' | 'end',
+        maxLines: Math.max(1, Math.floor(h / Math.max(textSize + 4, 1))) || 6,
+        latex: latexMode,
       });
+      svg += block.svg;
       break;
     }
     case 'formula': {
       const value = readString(resolveValue(element.properties.value, values, traces), label);
-      svg += renderFormulaText(value, x, y, {
+      svg += await renderDisplayFormula(value, x, y, {
         fontSize: textSize || 22,
         color,
         anchor: 'middle',
-        weight: '500',
       });
       break;
     }
@@ -117,24 +177,73 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
       const cx = x + w / 2;
       const cy = y + h / 2;
       svg += `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(radiusPx)}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth || 1.8}"${dashAttr}${fillOpacityAttr}${strokeOpacityAttr}/>`;
-      if (label) svg += `<text x="${round(cx)}" y="${round(cy + textSize / 3)}" text-anchor="middle" font-size="${Math.max(14, textSize)}" font-weight="700" fill="${color}">${escapeXml(label)}</text>`;
+      if (label) {
+        const block = await renderRichTextBlock(label, {
+          x: cx,
+          y: cy - Math.max(textSize, 14) / 2,
+          maxWidth: w - 18,
+          fontSize: Math.max(14, textSize),
+          weight: '700',
+          color,
+          anchor: 'middle',
+          maxLines: 3,
+          latex: latexMode,
+        });
+        svg += block.svg;
+      }
       break;
     }
     case 'ellipse': {
       const cx = x + w / 2;
       const cy = y + h / 2;
       svg += `<ellipse cx="${round(cx)}" cy="${round(cy)}" rx="${round(w / 2)}" ry="${round(h / 2)}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth || 1.8}"${dashAttr}${fillOpacityAttr}${strokeOpacityAttr}/>`;
-      if (label) svg += `<text x="${round(cx)}" y="${round(cy + textSize / 3)}" text-anchor="middle" font-size="${Math.max(14, textSize)}" font-weight="700" fill="${color}">${escapeXml(label)}</text>`;
+      if (label) {
+        const block = await renderRichTextBlock(label, {
+          x: cx,
+          y: cy - Math.max(textSize, 14) / 2,
+          maxWidth: w - 18,
+          fontSize: Math.max(14, textSize),
+          weight: '700',
+          color,
+          anchor: 'middle',
+          maxLines: 3,
+          latex: latexMode,
+        });
+        svg += block.svg;
+      }
       break;
     }
     case 'badge':
     case 'callout': {
       svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${dashAttr}${fillOpacityAttr}${strokeOpacityAttr}/>`;
-      const lines = wrapText(label, Math.max(10, Math.floor(w / 11)), 5);
-      lines.forEach((line, index) => {
-        svg += `<text x="${round(x + w / 2)}" y="${round(y + 28 + index * 18)}" text-anchor="middle" font-size="${index === 0 ? Math.max(14, textSize) : 13}" font-weight="${index === 0 ? '800' : '500'}" fill="${color}">${escapeXml(line)}</text>`;
-      });
-      if (subtitle) svg += `<text x="${round(x + w / 2)}" y="${round(y + h - 14)}" text-anchor="middle" font-size="12" fill="#64748b">${escapeXml(subtitle)}</text>`;
+      const labelBlock = label
+        ? await renderRichTextBlock(label, {
+            x: x + w / 2,
+            y: y + 14,
+            maxWidth: w - 20,
+            fontSize: Math.max(14, textSize),
+            weight: '800',
+            color,
+            anchor: 'middle',
+            maxLines: 5,
+            latex: latexMode,
+          })
+        : { svg: '', height: 0, lines: 0 };
+      svg += labelBlock.svg;
+      if (subtitle) {
+        const subtitleBlock = await renderRichTextBlock(subtitle, {
+          x: x + w / 2,
+          y: Math.max(y + h - 30, y + 18 + labelBlock.height),
+          maxWidth: w - 20,
+          fontSize: 12,
+          weight: '500',
+          color: '#64748b',
+          anchor: 'middle',
+          maxLines: 2,
+          latex: latexMode,
+        });
+        svg += subtitleBlock.svg;
+      }
       break;
     }
     case 'image': {
@@ -169,12 +278,25 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
       const arrow = element.type === 'arrow';
       if (arrow) svg += `<defs><marker id="arrow-${escapeXml(element.name)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${stroke}"/></marker></defs>`;
       svg += `<line x1="${round(x)}" y1="${round(y)}" x2="${round(x2)}" y2="${round(y2)}" stroke="${stroke}" stroke-width="${strokeWidth}"${dashAttr}${strokeOpacityAttr} ${arrow ? `marker-end="url(#arrow-${escapeXml(element.name)})"` : ''}/>`;
-      if (label) svg += `<text x="${round((x + x2) / 2)}" y="${round((y + y2) / 2 - 8)}" text-anchor="middle" font-size="12" fill="${color}">${escapeXml(label)}</text>`;
+      if (label) {
+        const labelBlock = await renderRichTextBlock(label, {
+          x: (x + x2) / 2,
+          y: (y + y2) / 2 - 24,
+          maxWidth: Math.max(120, Math.abs(x2 - x) - 16),
+          fontSize: 12,
+          weight: '500',
+          color,
+          anchor: 'middle',
+          maxLines: 2,
+          latex: latexMode,
+        });
+        svg += labelBlock.svg;
+      }
       break;
     }
     case 'embed': {
       const target = readString(resolveValue(element.properties.target, values, traces), label);
-      const embedded = renderEmbed(target);
+      const embedded = await renderEmbed(target);
       if (embedded) {
         const doc = extractSvgDocument(embedded);
         const fit = fitIntoBox(doc.width, doc.height, w, h);
@@ -187,8 +309,21 @@ function renderElement(element: DiagramElement, values: Record<string, GSValue>,
     }
     default:
       svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="12" fill="${fill}" stroke="${stroke}"/>`;
-      svg += `<text x="${round(x + w / 2)}" y="${round(y + h / 2)}" text-anchor="middle" font-size="14" fill="${color}">${escapeXml(label)}</text>`;
-      if (element.children?.length) svg += renderElements(element.children, values, traces, renderEmbed, assetBaseDir, x, y);
+      if (label) {
+        const block = await renderRichTextBlock(label, {
+          x: x + w / 2,
+          y: y + h / 2 - 10,
+          maxWidth: w - 20,
+          fontSize: 14,
+          weight: '600',
+          color,
+          anchor: 'middle',
+          maxLines: 3,
+          latex: latexMode,
+        });
+        svg += block.svg;
+      }
+      if (element.children?.length) svg += await renderElements(element.children, values, traces, renderEmbed, assetBaseDir, x, y);
       break;
   }
   return svg;
