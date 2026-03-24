@@ -25,6 +25,8 @@ export function createBuiltins(): Record<string, GSValue> {
     ceil: Math.ceil,
     round: Math.round,
     pow: Math.pow,
+    str: (value: GSValue): string => String(value),
+    clamp: (value: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, value)),
     sigmoid: (x: number) => 1 / (1 + Math.exp(-x)),
     tanh: Math.tanh,
     len: (arr: GSValue): number => {

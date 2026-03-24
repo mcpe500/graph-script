@@ -1,19 +1,25 @@
-import { FlowDeclaration, FlowNode, FlowEdge } from '../ast/types';
+import { FlowDeclaration } from '../ast/types';
+import { escapeXml, round, wrapText } from './common';
 
 export interface FlowLayout {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   width: number;
   height: number;
+  minX: number;
+  minY: number;
+  direction: 'top_down' | 'left_right';
 }
 
 export interface LayoutNode {
   id: string;
   label: string;
+  nodeType?: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  lines: string[];
 }
 
 export interface LayoutEdge {
@@ -23,208 +29,278 @@ export interface LayoutEdge {
   points: { x: number; y: number }[];
 }
 
+interface NodeBox {
+  width: number;
+  height: number;
+  lines: string[];
+}
+
 export function layoutFlow(flow: FlowDeclaration): FlowLayout {
+  const direction = resolveDirection(flow);
   const nodes = flow.nodes || [];
   const edges = flow.edges || [];
-
-  const nodeWidth = 120;
-  const nodeHeight = 50;
-  const horizontalGap = 80;
-  const verticalGap = 60;
-  const padding = 40;
+  const padding = 52;
+  const horizontalGap = direction === 'left_right' ? 120 : 72;
+  const verticalGap = direction === 'left_right' ? 36 : 96;
 
   const adjacency = new Map<string, string[]>();
-  const inDegree = new Map<string, number>();
-
-  for (const node of nodes) {
+  const indegree = new Map<string, number>();
+  nodes.forEach((node) => {
     adjacency.set(node.id, []);
-    inDegree.set(node.id, 0);
-  }
-
-  for (const edge of edges) {
+    indegree.set(node.id, 0);
+  });
+  edges.forEach((edge) => {
     adjacency.get(edge.from)?.push(edge.to);
-    inDegree.set(edge.to, (inDegree.get(edge.to) || 0) + 1);
-  }
+    indegree.set(edge.to, (indegree.get(edge.to) ?? 0) + 1);
+  });
 
   const levels: string[][] = [];
-  let currentLevel = nodes.filter(n => inDegree.get(n.id) === 0).map(n => n.id);
+  let frontier = nodes.filter((node) => (indegree.get(node.id) ?? 0) === 0).map((node) => node.id);
+  if (!frontier.length) frontier = nodes.map((node) => node.id);
+  const assigned = new Set<string>();
 
-  if (currentLevel.length === 0) {
-    currentLevel = nodes.map(n => n.id);
+  while (frontier.length) {
+    levels.push(frontier);
+    frontier.forEach((id) => assigned.add(id));
+    const next: string[] = [];
+    frontier.forEach((nodeId) => {
+      for (const neighbor of adjacency.get(nodeId) ?? []) {
+        if (assigned.has(neighbor)) continue;
+        const ready = edges.filter((edge) => edge.to === neighbor).every((edge) => assigned.has(edge.from));
+        if (ready && !next.includes(neighbor)) next.push(neighbor);
+      }
+    });
+    if (!next.length && assigned.size < nodes.length) {
+      const fallback = nodes.find((node) => !assigned.has(node.id));
+      if (fallback) next.push(fallback.id);
+    }
+    frontier = next;
   }
 
-  levels.push([...currentLevel]);
-  const assigned = new Set(currentLevel);
-
-  while (assigned.size < nodes.length) {
-    const nextLevel: string[] = [];
-
-    for (const nodeId of currentLevel) {
-      const neighbors = adjacency.get(nodeId) || [];
-      for (const neighbor of neighbors) {
-        if (!assigned.has(neighbor)) {
-          const allParentsAssigned = edges
-            .filter(e => e.to === neighbor)
-            .every(e => assigned.has(e.from));
-
-          if (allParentsAssigned && !nextLevel.includes(neighbor)) {
-            nextLevel.push(neighbor);
-          }
-        }
-      }
-    }
-
-    if (nextLevel.length === 0) {
-      for (const node of nodes) {
-        if (!assigned.has(node.id)) {
-          nextLevel.push(node.id);
-          break;
-        }
-      }
-    }
-
-    if (nextLevel.length === 0) break;
-
-    levels.push([...nextLevel]);
-    nextLevel.forEach(n => assigned.add(n));
-    currentLevel = nextLevel;
-  }
+  const measured = new Map<string, NodeBox>();
+  nodes.forEach((node) => {
+    measured.set(node.id, measureNode(node.label || node.id, node.nodeType));
+  });
 
   const layoutNodes: LayoutNode[] = [];
   const nodeMap = new Map<string, LayoutNode>();
 
-  levels.forEach((level, row) => {
-    const levelWidth = level.length * nodeWidth + (level.length - 1) * horizontalGap;
-    const startX = (levelWidth > 0 ? -levelWidth / 2 : 0) + nodeWidth / 2;
+  let levelOffset = 0;
+  levels.forEach((level) => {
+    const boxes = level.map((nodeId) => measured.get(nodeId) ?? measureNode(nodeId));
+    const primarySpan = boxes.reduce((sum, box) => sum + (direction === 'left_right' ? box.height : box.width), 0)
+      + Math.max(0, level.length - 1) * (direction === 'left_right' ? verticalGap : horizontalGap);
+    let primaryCursor = -primarySpan / 2;
+    const secondarySpan = Math.max(...boxes.map((box) => direction === 'left_right' ? box.width : box.height), 0);
+    const secondaryCenter = levelOffset + secondarySpan / 2;
 
-    level.forEach((nodeId, col) => {
-      const node = nodes.find(n => n.id === nodeId);
+    level.forEach((nodeId, index) => {
+      const node = nodes.find((entry) => entry.id === nodeId);
       if (!node) return;
+      const box = boxes[index];
+      const primarySize = direction === 'left_right' ? box.height : box.width;
+      const primaryCenter = primaryCursor + primarySize / 2;
+      const positioned: LayoutNode = direction === 'left_right'
+        ? {
+            id: node.id,
+            label: node.label || node.id,
+            nodeType: node.nodeType,
+            x: secondaryCenter,
+            y: primaryCenter,
+            width: box.width,
+            height: box.height,
+            lines: box.lines,
+          }
+        : {
+            id: node.id,
+            label: node.label || node.id,
+            nodeType: node.nodeType,
+            x: primaryCenter,
+            y: secondaryCenter,
+            width: box.width,
+            height: box.height,
+            lines: box.lines,
+          };
 
-      const x = startX + col * (nodeWidth + horizontalGap);
-      const y = row * (nodeHeight + verticalGap);
-      const label = node.label || node.id;
-
-      const layoutNode: LayoutNode = {
-        id: node.id,
-        label,
-        x,
-        y,
-        width: nodeWidth,
-        height: nodeHeight
-      };
-
-      layoutNodes.push(layoutNode);
-      nodeMap.set(node.id, layoutNode);
+      layoutNodes.push(positioned);
+      nodeMap.set(node.id, positioned);
+      primaryCursor += primarySize + (direction === 'left_right' ? verticalGap : horizontalGap);
     });
+
+    levelOffset += secondarySpan + (direction === 'left_right' ? horizontalGap : verticalGap);
   });
 
-  const layoutEdges: LayoutEdge[] = edges.map(edge => {
+  const layoutEdges: LayoutEdge[] = edges.map((edge) => {
     const fromNode = nodeMap.get(edge.from);
     const toNode = nodeMap.get(edge.to);
+    if (!fromNode || !toNode) return { from: edge.from, to: edge.to, label: edge.label, points: [] };
 
-    if (!fromNode || !toNode) {
-      return { from: edge.from, to: edge.to, label: edge.label, points: [] };
+    if (direction === 'left_right') {
+      const startX = fromNode.x + fromNode.width / 2;
+      const startY = fromNode.y;
+      const endX = toNode.x - toNode.width / 2;
+      const endY = toNode.y;
+      const midX = (startX + endX) / 2;
+      return {
+        from: edge.from,
+        to: edge.to,
+        label: edge.label,
+        points: [
+          { x: startX, y: startY },
+          { x: midX, y: startY },
+          { x: midX, y: endY },
+          { x: endX, y: endY },
+        ],
+      };
     }
 
-    const startX = fromNode.x + fromNode.width / 2;
-    const startY = fromNode.y + fromNode.height;
-    const endX = toNode.x + toNode.width / 2;
-    const endY = toNode.y;
-
+    const startX = fromNode.x;
+    const startY = fromNode.y + fromNode.height / 2;
+    const endX = toNode.x;
+    const endY = toNode.y - toNode.height / 2;
     const midY = (startY + endY) / 2;
-    const points = [
-      { x: startX, y: startY },
-      { x: startX, y: midY },
-      { x: endX, y: midY },
-      { x: endX, y: endY }
-    ];
-
     return {
       from: edge.from,
       to: edge.to,
       label: edge.label,
-      points
+      points: [
+        { x: startX, y: startY },
+        { x: startX, y: midY },
+        { x: endX, y: midY },
+        { x: endX, y: endY },
+      ],
     };
   });
 
-  let maxX = 0, maxY = 0;
-  for (const node of layoutNodes) {
-    maxX = Math.max(maxX, node.x + node.width / 2);
-    maxY = Math.max(maxY, node.y + node.height / 2);
-  }
+  const xs = layoutNodes.flatMap((node) => [node.x - node.width / 2, node.x + node.width / 2]);
+  const ys = layoutNodes.flatMap((node) => [node.y - node.height / 2, node.y + node.height / 2]);
+  const minX = Math.min(...xs, 0);
+  const maxX = Math.max(...xs, 0);
+  const minY = Math.min(...ys, 0);
+  const maxY = Math.max(...ys, 0);
+  const width = (maxX - minX) + padding * 2;
+  const height = (maxY - minY) + padding * 2;
 
-  const width = maxX + padding;
-  const height = maxY + padding;
-
-  return { nodes: layoutNodes, edges: layoutEdges, width, height };
+  return { nodes: layoutNodes, edges: layoutEdges, width, height, minX, minY, direction };
 }
 
 export function renderFlow(layout: FlowLayout, title?: string): string {
-  const { width, height, nodes, edges } = layout;
-  const svgWidth = Math.max(width + 100, 400);
-  const svgHeight = Math.max(height + 100, 300);
-  const offsetX = svgWidth / 2;
-  const offsetY = 60;
+  const svgWidth = Math.max(560, layout.width + 140);
+  const svgHeight = Math.max(360, layout.height + 130);
+  const outerPaddingX = (svgWidth - layout.width) / 2;
+  const offsetX = outerPaddingX - layout.minX;
+  const offsetY = 86 - layout.minY;
 
   let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
-  svg += `<rect width="${svgWidth}" height="${svgHeight}" fill="white"/>`;
-
+  svg += `<rect width="${svgWidth}" height="${svgHeight}" fill="#ffffff"/>`;
   if (title) {
-    svg += `<text x="${svgWidth / 2}" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">${escapeXml(title)}</text>`;
+    svg += `<text x="${svgWidth / 2}" y="36" text-anchor="middle" font-size="22" font-weight="800" fill="#0f172a">${escapeXml(title)}</text>`;
   }
 
+  svg += `<defs>`;
+  svg += `<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">`;
+  svg += `<path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/></marker>`;
+  svg += `</defs>`;
   svg += `<g transform="translate(${offsetX}, ${offsetY})">`;
 
-  for (const edge of edges) {
-    if (edge.points.length < 2) continue;
-
-    const pathPoints = edge.points.map(p => `${p.x},${p.y}`).join(' ');
-    svg += `<polyline points="${pathPoints}" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/>`;
-
+  layout.edges.forEach((edge) => {
+    if (edge.points.length < 2) return;
+    const polyline = edge.points.map((point) => `${round(point.x)},${round(point.y)}`).join(' ');
+    svg += `<polyline points="${polyline}" fill="none" stroke="#475569" stroke-width="2.4" marker-end="url(#arrow)"/>`;
     if (edge.label) {
-      const midIdx = Math.floor(edge.points.length / 2);
-      const midX = edge.points[midIdx].x;
-      const midY = edge.points[midIdx].y;
-      svg += `<text x="${midX}" y="${midY - 8}" text-anchor="middle" font-size="11" fill="#666">${escapeXml(edge.label)}</text>`;
+      const mid = edge.points[Math.floor(edge.points.length / 2)];
+      const chipWidth = Math.max(44, edge.label.length * 7 + 18);
+      svg += `<rect x="${round(mid.x - chipWidth / 2)}" y="${round(mid.y - 20)}" width="${round(chipWidth)}" height="20" rx="10" fill="#ffffff" stroke="#cbd5e1"/>`;
+      svg += `<text x="${round(mid.x)}" y="${round(mid.y - 7)}" text-anchor="middle" font-size="11" font-weight="700" fill="#475569">${escapeXml(edge.label)}</text>`;
     }
-  }
+  });
 
-  svg += `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">`;
-  svg += `<path d="M 0 0 L 10 5 L 0 10 z" fill="#666"/></marker></defs>`;
+  layout.nodes.forEach((node) => {
+    svg += renderNode(node);
+  });
 
-  const nodeColors: Record<string, string> = {
-    start: '#27ae60',
-    end: '#e74c3c',
-    decision: '#f39c12',
-    process: '#3498db',
-    data: '#9b59b6'
-  };
-
-  for (const node of nodes) {
-    const fillColor = nodeColors[node.label.toLowerCase()] || '#3498db';
-
-    svg += `<g transform="translate(${node.x - node.width / 2}, ${node.y - node.height / 2})">`;
-
-    svg += `<rect width="${node.width}" height="${node.height}" rx="6" fill="${fillColor}" stroke="#2c3e50" stroke-width="2"/>`;
-
-    svg += `<text x="${node.width / 2}" y="${node.height / 2 + 5}" text-anchor="middle" font-size="12" fill="white" font-weight="500">${escapeXml(node.label)}</text>`;
-
-    svg += `</g>`;
-  }
-
-  svg += `</g>`;
-  svg += `</svg>`;
-
+  svg += `</g></svg>`;
   return svg;
 }
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+function renderNode(node: LayoutNode): string {
+  const type = (node.nodeType ?? 'process').toLowerCase();
+  const theme = nodeTheme(type);
+  const x = node.x - node.width / 2;
+  const y = node.y - node.height / 2;
+  const textStart = node.y - ((node.lines.length - 1) * 16) / 2 + 5;
+
+  let svg = `<g>`;
+  switch (type) {
+    case 'start':
+    case 'end':
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(node.width)}" height="${round(node.height)}" rx="${round(node.height / 2)}" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+    case 'decision': {
+      const top = `${round(node.x)},${round(y)}`;
+      const right = `${round(node.x + node.width / 2)},${round(node.y)}`;
+      const bottom = `${round(node.x)},${round(node.y + node.height / 2)}`;
+      const left = `${round(node.x - node.width / 2)},${round(node.y)}`;
+      svg += `<polygon points="${top} ${right} ${bottom} ${left}" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+    }
+    case 'data': {
+      const skew = 18;
+      svg += `<polygon points="${round(x + skew)},${round(y)} ${round(x + node.width)},${round(y)} ${round(x + node.width - skew)},${round(y + node.height)} ${round(x)},${round(y + node.height)}" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+    }
+    default:
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(node.width)}" height="${round(node.height)}" rx="14" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+  }
+
+  node.lines.forEach((line, index) => {
+    svg += `<text x="${round(node.x)}" y="${round(textStart + index * 16)}" text-anchor="middle" font-size="13" font-weight="700" fill="${theme.text}">${escapeXml(line)}</text>`;
+  });
+  svg += `</g>`;
+  return svg;
+}
+
+function resolveDirection(flow: FlowDeclaration): 'top_down' | 'left_right' {
+  const directionExpr = flow.properties.direction;
+  if (directionExpr?.type === 'Identifier' && directionExpr.name === 'left_right') return 'left_right';
+  if (directionExpr?.type === 'Literal' && directionExpr.value === 'left_right') return 'left_right';
+  return 'top_down';
+}
+
+function measureNode(label: string, type?: string): NodeBox {
+  const kind = (type ?? 'process').toLowerCase();
+  const maxChars = kind === 'decision' ? 18 : 24;
+  const lines = wrapText(label, maxChars, 4);
+  const longest = Math.max(...lines.map((line) => line.length), 8);
+  const textWidth = longest * 7.4;
+  const textHeight = lines.length * 16;
+
+  switch (kind) {
+    case 'decision':
+      return { width: Math.max(190, textWidth + 60), height: Math.max(110, textHeight + 54), lines };
+    case 'start':
+    case 'end':
+      return { width: Math.max(150, textWidth + 52), height: Math.max(56, textHeight + 30), lines };
+    case 'data':
+      return { width: Math.max(180, textWidth + 48), height: Math.max(72, textHeight + 34), lines };
+    default:
+      return { width: Math.max(210, textWidth + 48), height: Math.max(76, textHeight + 34), lines };
+  }
+}
+
+function nodeTheme(type: string): { fill: string; stroke: string; text: string } {
+  switch (type) {
+    case 'start':
+      return { fill: '#dcfce7', stroke: '#16a34a', text: '#166534' };
+    case 'end':
+      return { fill: '#fee2e2', stroke: '#dc2626', text: '#991b1b' };
+    case 'decision':
+      return { fill: '#fef3c7', stroke: '#d97706', text: '#92400e' };
+    case 'data':
+      return { fill: '#ede9fe', stroke: '#7c3aed', text: '#5b21b6' };
+    default:
+      return { fill: '#dbeafe', stroke: '#2563eb', text: '#1e3a8a' };
+  }
 }

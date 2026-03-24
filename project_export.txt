@@ -1,31 +1,30 @@
 ================================================================================
 PROJECT EXPORT
-Generated: 2026-03-24 14:49:21
+Generated: 2026-03-24 17:27:00
 Root: graph-script
-Total files: 115
+Total files: 122
 ================================================================================
 
 TABLE OF CONTENTS
 ----------------------------------------
   .gitignore
   autorun.md
+  examples\aws-platform.gs
   examples\binary-search.gs
   examples\bloch-sphere.gs
   examples\decision-tree-flow.gs
   examples\graph-traversal-flow.gs
   examples\hello-chart.gs
+  examples\pseudo-test.gs
   examples\quantum-circuit-flow.gs
   examples\quantum-fidelity.gs
   examples\quantum-fourier.gs
+  examples\qubit-scene.gs
   examples\qubit-stats.gs
+  examples\schema-demo.gs
   export_project_to_txt.py
   jest.config.js
-  output\Decision Tree Algorithm.svg
-  output\Measurement Counts.svg
-  output\Measurement Probabilities.svg
-  output\Quantum Circuit Flow.svg
-  output\Search Trace.svg
-  output\Squares.svg
+  output\Quantum Analytics Platform.svg
   package.json
   packages\ast\package.json
   packages\ast\src\index.d.ts
@@ -94,6 +93,7 @@ TABLE OF CONTENTS
   packages\runtime\tsconfig.json
   program.md
   SPEC.md
+  spec\INSTRUCTIONS.MD
   src\ast\types.ts
   src\cli.ts
   src\parser\declarations.ts
@@ -101,9 +101,16 @@ TABLE OF CONTENTS
   src\parser\index.ts
   src\parser\statements.ts
   src\renderer\chart.ts
+  src\renderer\common.ts
+  src\renderer\diagram.ts
+  src\renderer\erd.ts
   src\renderer\flow.ts
   src\renderer\index.ts
+  src\renderer\infra.ts
+  src\renderer\page.ts
   src\renderer\plot3d.ts
+  src\renderer\pseudo.ts
+  src\renderer\scene3d.ts
   src\renderer\table.ts
   src\runtime\builtins.ts
   src\runtime\index.ts
@@ -285,6 +292,22 @@ The idea is that you are a completely autonomous developer trying things out. If
 As an example use case, a user might leave you running while they sleep. If each experiment takes you ~10 minutes then you can run approx 6/hour, for a total of about 50 over the duration of the average human sleep. The user then wakes up to a more complete implementation of GraphScript, all completed by you while they slept!
 
 ────────────────────────────────────────────────────────────────────────────────
+FILE: examples\aws-platform.gs
+────────────────────────────────────────────────────────────────────────────────
+infra aws "Quantum Analytics Platform":
+  user client label="Researcher"
+  gateway edge label="API Gateway"
+  service api label="Orchestrator"
+  queue jobs label="Job Queue"
+  database results label="Results DB"
+  storage reports label="Report Bucket"
+  client -> edge
+  edge -> api
+  api -> jobs label="dispatch"
+  api -> results label="write"
+  results -> reports label="export"
+
+────────────────────────────────────────────────────────────────────────────────
 FILE: examples\binary-search.gs
 ────────────────────────────────────────────────────────────────────────────────
 use chart
@@ -407,6 +430,11 @@ chart "Squares":
   ylabel = "x^2"
 
 ────────────────────────────────────────────────────────────────────────────────
+FILE: examples\pseudo-test.gs
+────────────────────────────────────────────────────────────────────────────────
+pseudo "Binary Search"
+
+────────────────────────────────────────────────────────────────────────────────
 FILE: examples\quantum-circuit-flow.gs
 ────────────────────────────────────────────────────────────────────────────────
 flow "Quantum Circuit Flow":
@@ -470,6 +498,15 @@ chart "QFT Phase Angles":
   ylabel = "Phase Angle"
 
 ────────────────────────────────────────────────────────────────────────────────
+FILE: examples\qubit-scene.gs
+────────────────────────────────────────────────────────────────────────────────
+scene3d "Qubit State Scene":
+  title = "Qubit State (3D Object Scene)"
+  sphere state x=0.5 y=0.5 z=0.707 radius=0.12 color="#2563eb" label="|psi>"
+  arrow3 vector x=0 y=0 z=0 dx=0.5 dy=0.5 dz=0.707 color="#ef4444" label="Bloch vector"
+  cube anchor x=0 y=0 z=1.0 size=0.14 color="#f59e0b" label="north"
+
+────────────────────────────────────────────────────────────────────────────────
 FILE: examples\qubit-stats.gs
 ────────────────────────────────────────────────────────────────────────────────
 use chart
@@ -488,6 +525,26 @@ chart "Measurement Counts":
   source = measurements
   xlabel = "Qubit"
   ylabel = "Count"
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: examples\schema-demo.gs
+────────────────────────────────────────────────────────────────────────────────
+erd "Quantum Experiment DB":
+  table experiments:
+    id: int pk
+    name: string
+    created_at: timestamp
+  table runs:
+    id: int pk
+    experiment_id: int fk
+    energy: float
+  table measurements:
+    id: int pk
+    run_id: int fk
+    basis: string
+    count: int
+  experiments.id -> runs.experiment_id one-to-many
+  runs.id -> measurements.run_id one-to-many
 
 ────────────────────────────────────────────────────────────────────────────────
 FILE: export_project_to_txt.py
@@ -820,36 +877,9 @@ module.exports = {
 };
 
 ────────────────────────────────────────────────────────────────────────────────
-FILE: output\Decision Tree Algorithm.svg
+FILE: output\Quantum Analytics Platform.svg
 ────────────────────────────────────────────────────────────────────────────────
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="605" viewBox="0 0 400 605"><rect width="400" height="605" fill="white"/><text x="200" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">Decision Tree Algorithm</text><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666"/></marker></defs><g transform="translate(200, 60)"><polyline points="60,50 60,80 60,80 60,110" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="60,160 60,190 -40,190 -40,220" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><text x="-40" y="182" text-anchor="middle" font-size="11" fill="#666">Yes</text><polyline points="60,160 60,190 160,190 160,220" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><text x="160" y="182" text-anchor="middle" font-size="11" fill="#666">No</text><polyline points="160,270 160,300 -40,300 -40,330" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><text x="-40" y="292" text-anchor="middle" font-size="11" fill="#666">Yes</text><polyline points="160,270 160,300 160,300 160,330" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><text x="160" y="292" text-anchor="middle" font-size="11" fill="#666">No</text><polyline points="-40,270 -40,355 60,355 60,440" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="-40,380 -40,410 60,410 60,440" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="160,380 160,410 60,410 60,440" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><g transform="translate(-60, -25)"><rect width="120" height="50" rx="6" fill="#27ae60" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Start</text></g><g transform="translate(-60, 85)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Is feature &gt; threshold?</text></g><g transform="translate(-160, 195)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Class A</text></g><g transform="translate(40, 195)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Is feature2 &gt; threshold2?</text></g><g transform="translate(-160, 305)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Class B</text></g><g transform="translate(40, 305)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Class C</text></g><g transform="translate(-60, 415)"><rect width="120" height="50" rx="6" fill="#e74c3c" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">End</text></g></g></svg>
-
-────────────────────────────────────────────────────────────────────────────────
-FILE: output\Measurement Counts.svg
-────────────────────────────────────────────────────────────────────────────────
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><rect width="800" height="400" fill="white"/><text x="400" y="25" text-anchor="middle" font-size="18" font-weight="bold">Measurement Counts</text><g transform="translate(60, 40)"><line x1="0" y1="310" x2="720" y2="310" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="314" text-anchor="end" font-size="11" fill="#666">0.0</text><line x1="0" y1="232.5" x2="720" y2="232.5" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="236.5" text-anchor="end" font-size="11" fill="#666">0.8</text><line x1="0" y1="155" x2="720" y2="155" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="159" text-anchor="end" font-size="11" fill="#666">1.5</text><line x1="0" y1="77.5" x2="720" y2="77.5" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="81.5" text-anchor="end" font-size="11" fill="#666">2.3</text><line x1="0" y1="0" x2="720" y2="0" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="4" text-anchor="end" font-size="11" fill="#666">3.0</text><rect x="0" y="279" width="66" height="30.999999999999996" fill="#3498db" rx="2"><title>probabilities: 0.3</title></rect><rect x="144" y="294.5" width="66" height="15.499999999999998" fill="#3498db" rx="2"><title>probabilities: 0.15</title></rect><rect x="288" y="284.1666666666667" width="66" height="25.833333333333332" fill="#3498db" rx="2"><title>probabilities: 0.25</title></rect><rect x="432" y="289.3333333333333" width="66" height="20.666666666666668" fill="#3498db" rx="2"><title>probabilities: 0.2</title></rect><rect x="576" y="299.6666666666667" width="66" height="10.333333333333334" fill="#3498db" rx="2"><title>probabilities: 0.1</title></rect><rect x="66" y="0" width="66" height="310" fill="#e74c3c" rx="2"><title>measurements: 3</title></rect><rect x="210" y="206.66666666666669" width="66" height="103.33333333333333" fill="#e74c3c" rx="2"><title>measurements: 1</title></rect><rect x="354" y="103.33333333333334" width="66" height="206.66666666666666" fill="#e74c3c" rx="2"><title>measurements: 2</title></rect><rect x="498" y="103.33333333333334" width="66" height="206.66666666666666" fill="#e74c3c" rx="2"><title>measurements: 2</title></rect><rect x="642" y="206.66666666666669" width="66" height="103.33333333333333" fill="#e74c3c" rx="2"><title>measurements: 1</title></rect><line x1="0" y1="310" x2="720" y2="310" stroke="#333"/><line x1="0" y1="0" x2="0" y2="310" stroke="#333"/><text x="360" y="345" text-anchor="middle" font-size="12" fill="#333">Qubit</text><text x="-155" y="-40" text-anchor="middle" font-size="12" fill="#333" transform="rotate(-90)">Count</text></g></svg>
-
-────────────────────────────────────────────────────────────────────────────────
-FILE: output\Measurement Probabilities.svg
-────────────────────────────────────────────────────────────────────────────────
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><rect width="800" height="400" fill="white"/><text x="400" y="25" text-anchor="middle" font-size="18" font-weight="bold">Measurement Probabilities</text><path d="M 400 200 L 400 60 A 140 140 0 0 1 426.23338404200143 62.47978489798359 Z" fill="#3498db" stroke="white" stroke-width="2"><title>probabilities: 0.3</title></path><path d="M 400 200 L 426.23338404200143 62.47978489798359 A 140 140 0 0 1 439.0587548454921 65.55888400522798 Z" fill="#e74c3c" stroke="white" stroke-width="2"><title>probabilities: 0.15</title></path><path d="M 400 200 L 439.0587548454921 65.55888400522798 A 140 140 0 0 1 459.6091008191102 73.32421265475728 Z" fill="#2ecc71" stroke="white" stroke-width="2"><title>probabilities: 0.25</title></path><path d="M 400 200 L 459.6091008191102 73.32421265475728 A 140 140 0 0 1 475.0157512970595 81.79409042971791 Z" fill="#f39c12" stroke="white" stroke-width="2"><title>probabilities: 0.2</title></path><path d="M 400 200 L 475.0157512970595 81.79409042971791 A 140 140 0 0 1 482.28993532094626 86.73762078750738 Z" fill="#9b59b6" stroke="white" stroke-width="2"><title>probabilities: 0.1</title></path><path d="M 400 200 L 482.28993532094626 86.73762078750738 A 140 140 0 0 1 482.28993532094626 313.26237921249265 Z" fill="#1abc9c" stroke="white" stroke-width="2"><title>measurements: 3</title></path><text x="484" y="200" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="bold">30%</text><path d="M 400 200 L 482.28993532094626 313.26237921249265 A 140 140 0 0 1 400 340 Z" fill="#e67e22" stroke="white" stroke-width="2"><title>measurements: 1</title></path><text x="425.9574275274956" y="279.8887473687929" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="bold">10%</text><path d="M 400 200 L 400 340 A 140 140 0 0 1 266.8520877186785 243.26237921249265 Z" fill="#34495e" stroke="white" stroke-width="2"><title>measurements: 2</title></path><text x="350.6260388074323" y="267.9574275274956" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="bold">20%</text><path d="M 400 200 L 266.8520877186785 243.26237921249265 A 140 140 0 0 1 317.71006467905374 86.73762078750737 Z" fill="#3498db" stroke="white" stroke-width="2"><title>measurements: 2</title></path><text x="320.1112526312071" y="174.0425724725044" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="bold">20%</text><path d="M 400 200 L 317.71006467905374 86.73762078750737 A 140 140 0 0 1 400 60 Z" fill="#e74c3c" stroke="white" stroke-width="2"><title>measurements: 1</title></path><text x="374.0425724725044" y="120.11125263120711" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="bold">10%</text></svg>
-
-────────────────────────────────────────────────────────────────────────────────
-FILE: output\Quantum Circuit Flow.svg
-────────────────────────────────────────────────────────────────────────────────
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="825" viewBox="0 0 400 825"><rect width="400" height="825" fill="white"/><text x="200" y="30" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">Quantum Circuit Flow</text><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666"/></marker></defs><g transform="translate(200, 60)"><polyline points="60,50 60,80 60,80 60,110" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="60,160 60,190 60,190 60,220" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="60,270 60,300 60,300 60,330" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="60,380 60,410 60,410 60,440" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="60,490 60,520 60,520 60,550" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><polyline points="60,600 60,630 60,630 60,660" fill="none" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/><g transform="translate(-60, -25)"><rect width="120" height="50" rx="6" fill="#27ae60" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Input State</text></g><g transform="translate(-60, 85)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Initialize</text></g><g transform="translate(-60, 195)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">H Gate</text></g><g transform="translate(-60, 305)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">CNOT Gate</text></g><g transform="translate(-60, 415)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Measure</text></g><g transform="translate(-60, 525)"><rect width="120" height="50" rx="6" fill="#3498db" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">Output</text></g><g transform="translate(-60, 635)"><rect width="120" height="50" rx="6" fill="#e74c3c" stroke="#2c3e50" stroke-width="2"/><text x="60" y="30" text-anchor="middle" font-size="12" fill="white" font-weight="500">End</text></g></g></svg>
-
-────────────────────────────────────────────────────────────────────────────────
-FILE: output\Search Trace.svg
-────────────────────────────────────────────────────────────────────────────────
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><rect width="800" height="400" fill="white"/><text x="400" y="25" text-anchor="middle" font-size="18" font-weight="bold">Search Trace</text><g transform="translate(60, 40)"><line x1="0" y1="310" x2="720" y2="310" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="314" text-anchor="end" font-size="11" fill="#666">0.0</text><line x1="0" y1="232.5" x2="720" y2="232.5" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="236.5" text-anchor="end" font-size="11" fill="#666">4.8</text><line x1="0" y1="155" x2="720" y2="155" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="159" text-anchor="end" font-size="11" fill="#666">9.5</text><line x1="0" y1="77.5" x2="720" y2="77.5" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="81.5" text-anchor="end" font-size="11" fill="#666">14.3</text><line x1="0" y1="0" x2="720" y2="0" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="4" text-anchor="end" font-size="11" fill="#666">19.0</text><polyline points="0,293.6842105263158 80,261.0526315789474 160,228.42105263157896 240,195.78947368421052 320,163.1578947368421 400,130.52631578947367 480,97.89473684210526 560,65.26315789473685 640,32.63157894736844 720,0" fill="none" stroke="#3498db" stroke-width="2" stroke-linejoin="round"/><circle cx="0" cy="293.6842105263158" r="4" fill="#3498db"><title>sorted: 1</title></circle><circle cx="80" cy="261.0526315789474" r="4" fill="#3498db"><title>sorted: 3</title></circle><circle cx="160" cy="228.42105263157896" r="4" fill="#3498db"><title>sorted: 5</title></circle><circle cx="240" cy="195.78947368421052" r="4" fill="#3498db"><title>sorted: 7</title></circle><circle cx="320" cy="163.1578947368421" r="4" fill="#3498db"><title>sorted: 9</title></circle><circle cx="400" cy="130.52631578947367" r="4" fill="#3498db"><title>sorted: 11</title></circle><circle cx="480" cy="97.89473684210526" r="4" fill="#3498db"><title>sorted: 13</title></circle><circle cx="560" cy="65.26315789473685" r="4" fill="#3498db"><title>sorted: 15</title></circle><circle cx="640" cy="32.63157894736844" r="4" fill="#3498db"><title>sorted: 17</title></circle><circle cx="720" cy="0" r="4" fill="#3498db"><title>sorted: 19</title></circle><line x1="0" y1="310" x2="720" y2="310" stroke="#333"/><line x1="0" y1="0" x2="0" y2="310" stroke="#333"/><text x="360" y="345" text-anchor="middle" font-size="12" fill="#333">iteration</text><text x="-155" y="-40" text-anchor="middle" font-size="12" fill="#333" transform="rotate(-90)">mid value</text></g></svg>
-
-────────────────────────────────────────────────────────────────────────────────
-FILE: output\Squares.svg
-────────────────────────────────────────────────────────────────────────────────
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><rect width="800" height="400" fill="white"/><text x="400" y="25" text-anchor="middle" font-size="18" font-weight="bold">Squares</text><g transform="translate(60, 40)"><line x1="0" y1="310" x2="720" y2="310" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="314" text-anchor="end" font-size="11" fill="#666">0.0</text><line x1="0" y1="232.5" x2="720" y2="232.5" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="236.5" text-anchor="end" font-size="11" fill="#666">25.0</text><line x1="0" y1="155" x2="720" y2="155" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="159" text-anchor="end" font-size="11" fill="#666">50.0</text><line x1="0" y1="77.5" x2="720" y2="77.5" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="81.5" text-anchor="end" font-size="11" fill="#666">75.0</text><line x1="0" y1="0" x2="720" y2="0" stroke="#e0e0e0" stroke-dasharray="2"/><text x="-10" y="4" text-anchor="end" font-size="11" fill="#666">100.0</text><polyline points="0,310 80,306.9 160,303.8 240,300.7 320,297.6 400,294.5 480,291.4 560,288.3 640,285.2 720,282.1" fill="none" stroke="#3498db" stroke-width="2" stroke-linejoin="round"/><circle cx="0" cy="310" r="4" fill="#3498db"><title>xs: 0</title></circle><circle cx="80" cy="306.9" r="4" fill="#3498db"><title>xs: 1</title></circle><circle cx="160" cy="303.8" r="4" fill="#3498db"><title>xs: 2</title></circle><circle cx="240" cy="300.7" r="4" fill="#3498db"><title>xs: 3</title></circle><circle cx="320" cy="297.6" r="4" fill="#3498db"><title>xs: 4</title></circle><circle cx="400" cy="294.5" r="4" fill="#3498db"><title>xs: 5</title></circle><circle cx="480" cy="291.4" r="4" fill="#3498db"><title>xs: 6</title></circle><circle cx="560" cy="288.3" r="4" fill="#3498db"><title>xs: 7</title></circle><circle cx="640" cy="285.2" r="4" fill="#3498db"><title>xs: 8</title></circle><circle cx="720" cy="282.1" r="4" fill="#3498db"><title>xs: 9</title></circle><polyline points="0,306.9 80,297.6 160,282.1 240,260.4 320,232.5 400,198.4 480,158.1 560,111.6 640,58.89999999999998 720,0" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linejoin="round"/><circle cx="0" cy="306.9" r="4" fill="#e74c3c"><title>ys: 1</title></circle><circle cx="80" cy="297.6" r="4" fill="#e74c3c"><title>ys: 4</title></circle><circle cx="160" cy="282.1" r="4" fill="#e74c3c"><title>ys: 9</title></circle><circle cx="240" cy="260.4" r="4" fill="#e74c3c"><title>ys: 16</title></circle><circle cx="320" cy="232.5" r="4" fill="#e74c3c"><title>ys: 25</title></circle><circle cx="400" cy="198.4" r="4" fill="#e74c3c"><title>ys: 36</title></circle><circle cx="480" cy="158.1" r="4" fill="#e74c3c"><title>ys: 49</title></circle><circle cx="560" cy="111.6" r="4" fill="#e74c3c"><title>ys: 64</title></circle><circle cx="640" cy="58.89999999999998" r="4" fill="#e74c3c"><title>ys: 81</title></circle><circle cx="720" cy="0" r="4" fill="#e74c3c"><title>ys: 100</title></circle><line x1="0" y1="310" x2="720" y2="310" stroke="#333"/><line x1="0" y1="0" x2="0" y2="310" stroke="#333"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="700" viewBox="0 0 1100 700"><rect width="1100" height="700" fill="#f8fafc"/><text x="550" y="42" text-anchor="middle" font-size="30" font-weight="800" fill="#0f172a">Quantum Analytics Platform</text><text x="550" y="68" text-anchor="middle" font-size="14" fill="#64748b">Provider: aws</text></svg>
 
 ────────────────────────────────────────────────────────────────────────────────
 FILE: package.json
@@ -7887,6 +7917,52 @@ GraphScript should let users do this in one ecosystem:
 That is the defining promise of the language.
 
 ────────────────────────────────────────────────────────────────────────────────
+FILE: spec\INSTRUCTIONS.MD
+────────────────────────────────────────────────────────────────────────────────
+files you must read are inside @/spec/ and @/spec/handoff 
+and you must write the spec and handoff after the entire task is completed, follow the previous way or existing way to write spec and handoff
+
+
+so spec is the specs docs everything must be written here
+and then handoff is after you finish one session you must write it here.
+
+bacalah dari @/spec/handover/ folder itu isi semua handover document nya, pahami dan kemudian baca juga @/spec/ folder itu isi dari semua spec nya.
+pahami semuanya
+
+
+<REQUIREMENTS>
+* NEVER ASSUME, ALWAYS ASK FOR ANY INCONSISTENCIES OR UNCLEAR
+</REQUIREMENTS>
+
+anda adalah orang yang akan me research keseluruhan codebase ini untuk mendapatkan seluruh informasi yang pentin
+tujuannya adalah untuk menjawab task ini :
+<TASK>
+{TASK}
+</TASK>
+
+pastikan anda mengerti dulu project ini itu ngapain dan juga isinya apa saja, struktur dan juga inti dari project ini cara kerja.
+kemudian anda harus memahami dulu apa maksudnya dari task yang diberikan
+setelah itu anda lakukan validasi search jadi anda search seluruh codebase untuk mengetahui dan memahami task dan berdasarkan codebase, dan juga seharusnya perubahan akan dilakukan dimana dan apa.
+jadi research dan pahami dan deep thinking sampai anda mengerti semua tentang codebase ini kemudian juga apa hubungan dan maksud prompt/task nya.
+setelah anda mengerti semua itu
+tuliskan 
+prompt nya apa
+tujuan yang anda dapat/yang anda mengerti mau ngapain itu apa
+dan juga kenapa mau tujuan itu  
+terus codebasenya itu apa
+dan juga perubahan yang mau di implement apa secara logic nya yang akan berubah apa.
+terus perubahan secara code apa
+kemudian perubahan code itu kenapa dilakukan
+berikan juga logika nya atau pseudocode nya, untuk di review.
+kemudian juga apabile user menyediakan testcase makan simulasikan dan juga berikan tracing nya supaya saat di review bisa. 
+dan juga manual testing plan.
+
+dan semua itu masukan kedalam sebuah markdown file.
+didalam folder /spec/ isinya ikuti 3 digit mulai dari 000 sampai 999 jadi XXX. <task nya ngapain>.md
+seperti itu, jangan lupa cek apakah sudah ada file didalam folder spec, kalau sudah ada coba cari siapa tau ada informasi yang related untuk mempercepat research.
+pastikan isinya detail dan juga benar dan tervalidasi.
+
+────────────────────────────────────────────────────────────────────────────────
 FILE: src\ast\types.ts
 ────────────────────────────────────────────────────────────────────────────────
 export interface SourceLocation {
@@ -8076,6 +8152,7 @@ export interface FlowEdge {
 export interface DiagramDeclaration {
   type: 'DiagramDeclaration';
   name: string;
+  properties: Record<string, Expression>;
   elements: DiagramElement[];
   location: SourceLocation;
 }
@@ -8084,6 +8161,7 @@ export interface DiagramElement {
   type: string;
   name: string;
   properties: Record<string, Expression>;
+  children?: DiagramElement[];
 }
 
 export interface TableDeclaration {
@@ -8105,6 +8183,7 @@ export interface Plot3dDeclaration {
 export interface Scene3dDeclaration {
   type: 'Scene3dDeclaration';
   name: string;
+  properties: Record<string, Expression>;
   elements: Scene3dElement[];
   location: SourceLocation;
 }
@@ -8112,11 +8191,13 @@ export interface Scene3dDeclaration {
 export interface Scene3dElement {
   type: string;
   name: string;
+  properties: Record<string, Expression>;
 }
 
 export interface ErdDeclaration {
   type: 'ErdDeclaration';
   name: string;
+  properties: Record<string, Expression>;
   tables: ErdTable[];
   relationships: ErdRelationship[];
   location: SourceLocation;
@@ -8143,13 +8224,22 @@ export interface InfraDeclaration {
   type: 'InfraDeclaration';
   provider: string;
   name: string;
+  properties: Record<string, Expression>;
   elements: InfraElement[];
+  connections: InfraConnection[];
   location: SourceLocation;
 }
 
 export interface InfraElement {
   type: string;
   name: string;
+  properties: Record<string, Expression>;
+}
+
+export interface InfraConnection {
+  from: string;
+  to: string;
+  label?: string;
 }
 
 export interface PageDeclaration {
@@ -8329,7 +8419,7 @@ export interface EmitStatement {
 
 export const TOP_LEVEL_KEYWORDS = [
   'use', 'import', 'const', 'data', 'func', 'theme', 'style', 'sub',
-  'component', 'algo', 'chart', 'flow', 'diagram', 'table', 'plot3d',
+  'component', 'algo', 'pseudo', 'chart', 'flow', 'diagram', 'table', 'plot3d',
   'scene3d', 'erd', 'infra', 'page', 'render'
 ] as const;
 
@@ -8546,6 +8636,7 @@ export class DeclarationParser {
       case 'erd': return this.parseErdDeclaration();
       case 'infra': return this.parseInfraDeclaration();
       case 'page': return this.parsePageDeclaration();
+      case 'pseudo': return this.parsePseudoDeclaration();
       case 'render': return this.parseRenderDeclaration();
       default:
         this.error(`Unknown declaration: ${token.value}`);
@@ -8905,13 +8996,16 @@ export class DeclarationParser {
         }
       }
 
-      elements.push({ type, name: elemName, properties });
+      elements.push({ type, name: elemName, properties, children: [] });
       this.skipNewlines();
     }
+
+    const properties = this.parseBlockProperties();
 
     return {
       type: 'DiagramDeclaration',
       name,
+      properties,
       elements,
       location: { start, end: this.loc() }
     };
@@ -8976,12 +9070,13 @@ export class DeclarationParser {
       this.skipNewlines();
     }
 
+    const properties = this.parseBlockProperties();
     const elements: Scene3dElement[] = [];
 
     while (this.check('IDENTIFIER') && !['end'].includes(this.peek().value)) {
       const type = this.expect('IDENTIFIER').value;
       const elemName = this.expect('IDENTIFIER').value;
-      elements.push({ type, name: elemName });
+      elements.push({ type, name: elemName, properties: {} });
       this.skipNewlines();
     }
 
@@ -8990,6 +9085,7 @@ export class DeclarationParser {
     return {
       type: 'Scene3dDeclaration',
       name,
+      properties,
       elements,
       location: { start, end: this.loc() }
     };
@@ -9002,9 +9098,12 @@ export class DeclarationParser {
     const name = nameToken.type === 'STRING' ? nameToken.value : this.expect('IDENTIFIER').value;
     if (nameToken.type === 'STRING') this.advance();
 
+    const properties = this.parseBlockProperties();
+
     return {
       type: 'ErdDeclaration',
       name,
+      properties,
       tables: [],
       relationships: [],
       location: { start, end: this.loc() }
@@ -9019,11 +9118,15 @@ export class DeclarationParser {
     const name = nameToken.type === 'STRING' ? nameToken.value : this.expect('IDENTIFIER').value;
     if (nameToken.type === 'STRING') this.advance();
 
+    const properties = this.parseBlockProperties();
+
     return {
       type: 'InfraDeclaration',
       provider,
       name,
+      properties,
       elements: [],
+      connections: [],
       location: { start, end: this.loc() }
     };
   }
@@ -9043,6 +9146,23 @@ export class DeclarationParser {
       name,
       properties,
       placements: [],
+      location: { start, end: this.loc() }
+    };
+  }
+
+  private parsePseudoDeclaration(): TopLevelNode {
+    const start = this.loc();
+    this.advance();
+    const nameToken = this.peek();
+    const name = nameToken.type === 'STRING' ? nameToken.value : this.expect('IDENTIFIER').value;
+    if (nameToken.type === 'STRING') this.advance();
+
+    this.skipNewlines();
+
+    return {
+      type: 'PseudoDeclaration',
+      name,
+      lines: [],
       location: { start, end: this.loc() }
     };
   }
@@ -10104,6 +10224,376 @@ function escapeXml(str: string): string {
 }
 
 ────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\common.ts
+────────────────────────────────────────────────────────────────────────────────
+import { ChartDeclaration, DiagramDeclaration, ErdDeclaration, Expression, FlowDeclaration, InfraDeclaration, PageDeclaration, Plot3dDeclaration, PseudoDeclaration, Scene3dDeclaration, TableDeclaration } from '../ast/types';
+import { GSValue, Trace } from '../runtime/values';
+
+export type RenderableDeclaration =
+  | ChartDeclaration
+  | FlowDeclaration
+  | TableDeclaration
+  | Plot3dDeclaration
+  | PseudoDeclaration
+  | DiagramDeclaration
+  | Scene3dDeclaration
+  | ErdDeclaration
+  | InfraDeclaration
+  | PageDeclaration;
+
+export interface SvgDocument {
+  width: number;
+  height: number;
+  svg: string;
+}
+
+export function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+export function round(value: number, digits = 1): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+export function readString(value: any, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+export function readNumber(value: any, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+export function readBoolean(value: any, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+export function asStringArray(value: any): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+export function asNumberArray(value: any): number[] {
+  return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
+}
+
+export function resolveValue(expr: Expression | undefined, values: Record<string, GSValue>, traces: Map<string, Trace>): any {
+  if (!expr) return undefined;
+  switch (expr.type) {
+    case 'Literal':
+      return expr.value;
+    case 'Identifier':
+      return expr.name in values ? values[expr.name] : expr.name;
+    case 'ArrayExpression':
+      return expr.elements.map((element) => resolveValue(element, values, traces));
+    case 'ObjectExpression':
+      return Object.fromEntries(expr.properties.map((prop) => [prop.key, resolveValue(prop.value, values, traces)]));
+    case 'UnaryExpression': {
+      const operand = resolveValue(expr.operand, values, traces);
+      return expr.operator === '-' ? -Number(operand ?? 0) : !operand;
+    }
+    case 'BinaryExpression': {
+      const left = resolveValue(expr.left, values, traces);
+      const right = resolveValue(expr.right, values, traces);
+      switch (expr.operator) {
+        case '+': return typeof left === 'string' || typeof right === 'string' ? `${left ?? ''}${right ?? ''}` : Number(left ?? 0) + Number(right ?? 0);
+        case '-': return Number(left ?? 0) - Number(right ?? 0);
+        case '*': return Number(left ?? 0) * Number(right ?? 0);
+        case '/': return Number(left ?? 0) / Number(right ?? 1);
+        case '%': return Number(left ?? 0) % Number(right ?? 1);
+        case '^': return Math.pow(Number(left ?? 0), Number(right ?? 0));
+        case '==': return left === right;
+        case '!=': return left !== right;
+        case '<': return Number(left ?? 0) < Number(right ?? 0);
+        case '>': return Number(left ?? 0) > Number(right ?? 0);
+        case '<=': return Number(left ?? 0) <= Number(right ?? 0);
+        case '>=': return Number(left ?? 0) >= Number(right ?? 0);
+        case '&&': return !!left && !!right;
+        case '||': return !!left || !!right;
+        default: return undefined;
+      }
+    }
+    case 'CallExpression': {
+      const callee = typeof expr.callee === 'string'
+        ? expr.callee
+        : expr.callee.type === 'Identifier'
+          ? expr.callee.name
+          : undefined;
+      const args = expr.args.map((arg) => resolveValue(arg, values, traces));
+      switch (callee) {
+        case 'cell':
+          return `cell(${args.join(',')})`;
+        case 'grid':
+          return { type: 'grid', args };
+        default:
+          return undefined;
+      }
+    }
+    case 'MemberExpression': {
+      if (expr.property === 'trace' && expr.object.type === 'Identifier') return traces.get(expr.object.name);
+      const object = resolveValue(expr.object, values, traces);
+      return object?.[expr.property];
+    }
+    case 'IndexExpression': {
+      const object = resolveValue(expr.object, values, traces);
+      const index = resolveValue(expr.index, values, traces);
+      return Array.isArray(object) ? object[index] : object?.[index];
+    }
+    case 'ConditionalExpression': {
+      const test = resolveValue(expr.test, values, traces);
+      return test ? resolveValue(expr.consequent, values, traces) : resolveValue(expr.alternate, values, traces);
+    }
+    default:
+      return undefined;
+  }
+}
+
+export function svgDocument(width: number, height: number, body: string, background = '#ffffff'): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="${width}" height="${height}" fill="${background}"/>${body}</svg>`;
+}
+
+export function fitIntoBox(innerWidth: number, innerHeight: number, boxWidth: number, boxHeight: number): { scale: number; dx: number; dy: number } {
+  const scale = Math.min(boxWidth / Math.max(innerWidth, 1), boxHeight / Math.max(innerHeight, 1));
+  const dx = (boxWidth - innerWidth * scale) / 2;
+  const dy = (boxHeight - innerHeight * scale) / 2;
+  return { scale, dx, dy };
+}
+
+export function extractSvgDocument(svg: string): SvgDocument {
+  const widthMatch = svg.match(/width="([0-9.]+)"/);
+  const heightMatch = svg.match(/height="([0-9.]+)"/);
+  const width = widthMatch ? Number(widthMatch[1]) : 800;
+  const height = heightMatch ? Number(heightMatch[1]) : 600;
+  const body = svg.replace(/^.*?<svg[^>]*>/s, '').replace(/<\/svg>\s*$/s, '');
+  return { width, height, svg: body };
+}
+
+export function wrapText(text: string, maxChars: number, maxLines = 3): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!words.length) return [''];
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxChars || !current) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+      if (lines.length === maxLines - 1) break;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.slice(0, maxLines);
+}
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\diagram.ts
+────────────────────────────────────────────────────────────────────────────────
+import { DiagramDeclaration, DiagramElement } from '../ast/types';
+import { GSValue, Trace } from '../runtime/values';
+import { asStringArray, escapeXml, extractSvgDocument, fitIntoBox, readBoolean, readNumber, readString, resolveValue, round, svgDocument, wrapText } from './common';
+
+interface RenderEmbed {
+  (target: string): string | null;
+}
+
+export function renderDiagram(decl: DiagramDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed): string {
+  const width = readNumber(resolveValue(decl.properties?.width, values, traces), 1280);
+  const height = readNumber(resolveValue(decl.properties?.height, values, traces), 720);
+  const background = readString(resolveValue(decl.properties?.background, values, traces), '#f8fafc');
+  const title = readString(resolveValue(decl.properties?.title, values, traces), decl.name);
+  const subtitle = readString(resolveValue(decl.properties?.subtitle, values, traces), '');
+
+  let body = '';
+  body += `<rect width="${width}" height="${height}" fill="${background}"/>`;
+  if (title) body += `<text x="${width / 2}" y="58" text-anchor="middle" font-size="36" font-weight="800" fill="#0f172a">${escapeXml(title)}</text>`;
+  if (subtitle) body += `<text x="${width / 2}" y="92" text-anchor="middle" font-size="18" fill="#64748b">${escapeXml(subtitle)}</text>`;
+  body += renderElements(decl.elements, values, traces, renderEmbed, 0, 0);
+  return svgDocument(width, height, body, background);
+}
+
+function renderElements(elements: DiagramElement[], values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, offsetX: number, offsetY: number): string {
+  return elements.map((element) => renderElement(element, values, traces, renderEmbed, offsetX, offsetY)).join('');
+}
+
+function renderElement(element: DiagramElement, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, offsetX: number, offsetY: number): string {
+  const x = offsetX + readNumber(resolveValue(element.properties?.x, values, traces), 0);
+  const y = offsetY + readNumber(resolveValue(element.properties?.y, values, traces), 0);
+  const w = readNumber(resolveValue(element.properties?.w, values, traces), 200);
+  const h = readNumber(resolveValue(element.properties?.h, values, traces), 120);
+  const fill = readString(resolveValue(element.properties?.fill, values, traces), '#ffffff');
+  const stroke = readString(resolveValue(element.properties?.stroke, values, traces), '#cbd5e1');
+  const label = readString(resolveValue(element.properties?.label, values, traces), element.name);
+  const subtitle = readString(resolveValue(element.properties?.subtitle, values, traces), '');
+  const color = readString(resolveValue(element.properties?.color, values, traces), '#0f172a');
+  const radius = readNumber(resolveValue(element.properties?.radius, values, traces), 16);
+  const textSize = readNumber(resolveValue(element.properties?.size, values, traces), 16);
+  const weight = readString(resolveValue(element.properties?.weight, values, traces), '600');
+  const gridRows = Math.max(1, readNumber(resolveValue(element.properties?.rows, values, traces), 4));
+  const gridCols = Math.max(1, readNumber(resolveValue(element.properties?.cols, values, traces), 4));
+  const shadow = readBoolean(resolveValue(element.properties?.shadow, values, traces), ['panel', 'box', 'callout', 'badge'].includes(element.type));
+
+  let svg = '';
+  if (shadow) svg += `<rect x="${round(x + 6)}" y="${round(y + 8)}" width="${round(w)}" height="${round(h)}" rx="${radius}" fill="#94a3b8" fill-opacity="0.12"/>`;
+
+  switch (element.type) {
+    case 'panel':
+    case 'box':
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`;
+      if (label) svg += `<text x="${round(x + w / 2)}" y="${round(y + 34)}" text-anchor="middle" font-size="${Math.max(18, textSize)}" font-weight="800" fill="${color}">${escapeXml(label)}</text>`;
+      if (subtitle) svg += `<text x="${round(x + w / 2)}" y="${round(y + 58)}" text-anchor="middle" font-size="14" fill="#64748b">${escapeXml(subtitle)}</text>`;
+      if (element.children?.length) svg += renderElements(element.children, values, traces, renderEmbed, x, y);
+      break;
+    case 'grid': {
+      const cellW = w / gridCols;
+      const cellH = h / gridRows;
+      for (let row = 0; row < gridRows; row += 1) {
+        for (let col = 0; col < gridCols; col += 1) {
+          svg += `<rect x="${round(x + col * cellW)}" y="${round(y + row * cellH)}" width="${round(cellW - 2)}" height="${round(cellH - 2)}" rx="6" fill="${fill}" stroke="#ffffff" stroke-width="2"/>`;
+        }
+      }
+      break;
+    }
+    case 'checker': {
+      const colors = asStringArray(resolveValue(element.properties?.colors, values, traces));
+      const a = colors[0] ?? '#2563eb';
+      const b = colors[1] ?? '#f97316';
+      const cellW = w / gridCols;
+      const cellH = h / gridRows;
+      for (let row = 0; row < gridRows; row += 1) {
+        for (let col = 0; col < gridCols; col += 1) {
+          const colorFill = (row + col) % 2 === 0 ? a : b;
+          svg += `<rect x="${round(x + col * cellW)}" y="${round(y + row * cellH)}" width="${round(cellW - 2)}" height="${round(cellH - 2)}" rx="6" fill="${colorFill}" stroke="#ffffff" stroke-width="2"/>`;
+        }
+      }
+      break;
+    }
+    case 'text': {
+      const value = readString(resolveValue(element.properties?.value, values, traces), label);
+      const anchor = readString(resolveValue(element.properties?.anchor, values, traces), 'start');
+      const lines = value.split(/\n/g);
+      lines.forEach((line, index) => {
+        svg += `<text x="${round(x)}" y="${round(y + index * (textSize + 4))}" text-anchor="${anchor}" font-size="${textSize}" font-weight="${weight}" fill="${color}">${escapeXml(line)}</text>`;
+      });
+      break;
+    }
+    case 'formula': {
+      const value = readString(resolveValue(element.properties?.value, values, traces), label);
+      svg += `<text x="${round(x)}" y="${round(y)}" text-anchor="middle" font-size="${textSize || 22}" font-style="italic" font-weight="500" fill="${color}">${escapeXml(value)}</text>`;
+      break;
+    }
+    case 'badge':
+    case 'callout': {
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="${radius}" fill="${fill}" stroke="${stroke}"/>`;
+      const lines = wrapText(label, Math.max(8, Math.floor(w / 10)), 3);
+      lines.forEach((line, index) => {
+        svg += `<text x="${round(x + w / 2)}" y="${round(y + 28 + index * 18)}" text-anchor="middle" font-size="${index === 0 ? Math.max(14, textSize) : 13}" font-weight="${index === 0 ? '800' : '500'}" fill="${color}">${escapeXml(line)}</text>`;
+      });
+      if (subtitle) svg += `<text x="${round(x + w / 2)}" y="${round(y + h - 14)}" text-anchor="middle" font-size="12" fill="#64748b">${escapeXml(subtitle)}</text>`;
+      break;
+    }
+    case 'arrow':
+    case 'line': {
+      const x2 = offsetX + readNumber(resolveValue(element.properties?.x2, values, traces), x + w);
+      const y2 = offsetY + readNumber(resolveValue(element.properties?.y2, values, traces), y + h);
+      const arrow = element.type === 'arrow';
+      if (arrow) svg += `<defs><marker id="arrow-${escapeXml(element.name)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${stroke}"/></marker></defs>`;
+      svg += `<line x1="${round(x)}" y1="${round(y)}" x2="${round(x2)}" y2="${round(y2)}" stroke="${stroke}" stroke-width="${readNumber(resolveValue(element.properties?.strokeWidth, values, traces), 3)}" ${arrow ? `marker-end="url(#arrow-${escapeXml(element.name)})"` : ''}/>`;
+      if (label) svg += `<text x="${round((x + x2) / 2)}" y="${round((y + y2) / 2 - 8)}" text-anchor="middle" font-size="12" fill="${color}">${escapeXml(label)}</text>`;
+      break;
+    }
+    case 'embed': {
+      const target = readString(resolveValue(element.properties?.target, values, traces), label);
+      const embedded = renderEmbed(target);
+      if (embedded) {
+        const doc = extractSvgDocument(embedded);
+        const fit = fitIntoBox(doc.width, doc.height, w, h);
+        svg += `<g transform="translate(${round(x + fit.dx)}, ${round(y + fit.dy)}) scale(${round(fit.scale, 4)})">${doc.svg}</g>`;
+      } else {
+        svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" fill="#f1f5f9" stroke="#cbd5e1" rx="12"/>`;
+        svg += `<text x="${round(x + w / 2)}" y="${round(y + h / 2)}" text-anchor="middle" font-size="14" fill="#475569">Missing embed: ${escapeXml(target)}</text>`;
+      }
+      break;
+    }
+    default:
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="12" fill="${fill}" stroke="${stroke}"/>`;
+      svg += `<text x="${round(x + w / 2)}" y="${round(y + h / 2)}" text-anchor="middle" font-size="14" fill="${color}">${escapeXml(label)}</text>`;
+      if (element.children?.length) svg += renderElements(element.children, values, traces, renderEmbed, x, y);
+      break;
+  }
+  return svg;
+}
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\erd.ts
+────────────────────────────────────────────────────────────────────────────────
+import { ErdDeclaration } from '../ast/types';
+import { escapeXml, round, svgDocument } from './common';
+
+export function renderErd(decl: ErdDeclaration): string {
+  const tableWidth = 240;
+  const fieldHeight = 26;
+  const gap = 80;
+  const padding = 48;
+  const rows = Math.ceil(Math.sqrt(Math.max(decl.tables.length, 1)));
+  const cols = Math.ceil(Math.max(decl.tables.length, 1) / rows);
+  const width = Math.max(900, padding * 2 + cols * tableWidth + (cols - 1) * gap);
+  const height = Math.max(600, padding * 2 + rows * 220);
+
+  const positions = new Map<string, { x: number; y: number; w: number; h: number }>();
+  decl.tables.forEach((table, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const x = padding + col * (tableWidth + gap);
+    const h = 54 + table.fields.length * fieldHeight;
+    const y = padding + 36 + row * 240;
+    positions.set(table.name, { x, y, w: tableWidth, h });
+  });
+
+  let body = '';
+  body += `<text x="${width / 2}" y="42" text-anchor="middle" font-size="28" font-weight="800" fill="#0f172a">${escapeXml(decl.name)}</text>`;
+
+  decl.relationships.forEach((relationship, index) => {
+    const fromTable = relationship.from.split('.')[0];
+    const toTable = relationship.to.split('.')[0];
+    const a = positions.get(fromTable);
+    const b = positions.get(toTable);
+    if (!a || !b) return;
+    const startX = a.x + a.w;
+    const startY = a.y + a.h / 2 + index * 2;
+    const endX = b.x;
+    const endY = b.y + b.h / 2 - index * 2;
+    const midX = (startX + endX) / 2;
+    body += `<defs><marker id="erd-arrow-${index}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>`;
+    body += `<path d="M ${round(startX)} ${round(startY)} C ${round(midX)} ${round(startY)}, ${round(midX)} ${round(endY)}, ${round(endX)} ${round(endY)}" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#erd-arrow-${index})"/>`;
+    body += `<text x="${round(midX)}" y="${round((startY + endY) / 2 - 8)}" text-anchor="middle" font-size="11" fill="#475569">${escapeXml(relationship.cardinality)}</text>`;
+  });
+
+  decl.tables.forEach((table) => {
+    const pos = positions.get(table.name);
+    if (!pos) return;
+    body += `<rect x="${pos.x}" y="${pos.y}" width="${pos.w}" height="${pos.h}" rx="16" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>`;
+    body += `<rect x="${pos.x}" y="${pos.y}" width="${pos.w}" height="40" rx="16" fill="#1d4ed8"/>`;
+    body += `<rect x="${pos.x}" y="${pos.y + 22}" width="${pos.w}" height="18" fill="#1d4ed8"/>`;
+    body += `<text x="${pos.x + pos.w / 2}" y="${pos.y + 26}" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">${escapeXml(table.name)}</text>`;
+    table.fields.forEach((field, index) => {
+      const y = pos.y + 56 + index * fieldHeight;
+      if (index % 2 === 0) body += `<rect x="${pos.x + 1}" y="${y - 16}" width="${pos.w - 2}" height="${fieldHeight}" fill="#f8fafc"/>`;
+      const constraintText = field.constraints.length ? ` [${field.constraints.join(', ')}]` : '';
+      body += `<text x="${pos.x + 14}" y="${y}" font-size="12" font-weight="600" fill="#0f172a">${escapeXml(field.name)}</text>`;
+      body += `<text x="${pos.x + pos.w - 14}" y="${y}" text-anchor="end" font-size="12" fill="#475569">${escapeXml(field.fieldType + constraintText)}</text>`;
+    });
+  });
+
+  return svgDocument(width, height, body, '#f8fafc');
+}
+
+────────────────────────────────────────────────────────────────────────────────
 FILE: src\renderer\flow.ts
 ────────────────────────────────────────────────────────────────────────────────
 import { FlowDeclaration, FlowNode, FlowEdge } from '../ast/types';
@@ -10342,12 +10832,18 @@ FILE: src\renderer\index.ts
 ────────────────────────────────────────────────────────────────────────────────
 import * as fs from 'fs';
 import * as path from 'path';
-import { FlowDeclaration, ChartDeclaration, TableDeclaration, Plot3dDeclaration } from '../ast/types';
+import { FlowDeclaration, ChartDeclaration, TableDeclaration, Plot3dDeclaration, DiagramDeclaration, Scene3dDeclaration, ErdDeclaration, InfraDeclaration, PageDeclaration, PseudoDeclaration } from '../ast/types';
 import { GSValue, Trace } from '../runtime/values';
 import { renderBarChart, renderLineChart, extractChartConfig, extractDataSeries } from './chart';
 import { layoutFlow, renderFlow } from './flow';
 import { buildTableData, renderTable } from './table';
 import { buildPlot3d, renderPlot3d } from './plot3d';
+import { renderDiagram } from './diagram';
+import { renderScene3d } from './scene3d';
+import { renderErd } from './erd';
+import { renderInfra } from './infra';
+import { renderPage } from './page';
+import { renderPseudoBlock } from './pseudo';
 
 export interface RenderOptions {
   outputDir?: string;
@@ -10383,6 +10879,18 @@ export class Renderer {
           this.renderTable(name, decl as TableDeclaration, values, traces, outputDir);
         } else if (decl.type === 'Plot3dDeclaration') {
           this.renderPlot3d(name, decl as Plot3dDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'DiagramDeclaration') {
+          this.renderDiagram(name, decl as DiagramDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'Scene3dDeclaration') {
+          this.renderScene3d(name, decl as Scene3dDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'ErdDeclaration') {
+          this.renderErd(name, decl as ErdDeclaration, outputDir);
+        } else if (decl.type === 'InfraDeclaration') {
+          this.renderInfra(name, decl as InfraDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'PageDeclaration') {
+          this.renderPage(name, decl as PageDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'PseudoDeclaration') {
+          this.renderPseudo(name, decl as PseudoDeclaration, outputDir);
         }
       }
     }
@@ -10518,6 +11026,278 @@ export class Renderer {
     fs.writeFileSync(outputPath, svg, 'utf-8');
     console.log(`Rendered plot3d: ${outputPath}`);
   }
+
+  private renderDiagram(
+    name: string,
+    diagram: DiagramDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const renderEmbed = (target: string): string | null => {
+      const decl = values[target] as DiagramDeclaration | undefined;
+      if (decl?.type === 'DiagramDeclaration') {
+        return renderDiagram(decl, values, traces, renderEmbed);
+      }
+      return null;
+    };
+    const svg = renderDiagram(diagram, values, traces, renderEmbed);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered diagram: ${outputPath}`);
+  }
+
+  private renderScene3d(
+    name: string,
+    scene3d: Scene3dDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const svg = renderScene3d(scene3d, values, traces);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered scene3d: ${outputPath}`);
+  }
+
+  private renderErd(
+    name: string,
+    erd: ErdDeclaration,
+    outputDir: string
+  ): void {
+    const svg = renderErd(erd);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered erd: ${outputPath}`);
+  }
+
+  private renderInfra(
+    name: string,
+    infra: InfraDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const svg = renderInfra(infra, values, traces);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered infra: ${outputPath}`);
+  }
+
+  private renderPage(
+    name: string,
+    page: PageDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const renderEmbed = (target: string): string | null => {
+      const decl = values[target] as any;
+      if (!decl) return null;
+      switch (decl.type) {
+        case 'ChartDeclaration':
+          return '';
+        case 'FlowDeclaration':
+          return '';
+        case 'TableDeclaration':
+          return '';
+        case 'DiagramDeclaration':
+          return renderDiagram(decl as DiagramDeclaration, values, traces, renderEmbed);
+        case 'Scene3dDeclaration':
+          return renderScene3d(decl as Scene3dDeclaration, values, traces);
+        case 'ErdDeclaration':
+          return renderErd(decl as ErdDeclaration);
+        case 'InfraDeclaration':
+          return renderInfra(decl as InfraDeclaration, values, traces);
+        case 'PseudoDeclaration':
+          return renderPseudoBlock(decl as PseudoDeclaration);
+        default:
+          return null;
+      }
+    };
+    const svg = renderPage(page, values, traces, renderEmbed);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered page: ${outputPath}`);
+  }
+
+  private renderPseudo(
+    name: string,
+    pseudo: PseudoDeclaration,
+    outputDir: string
+  ): void {
+    const svg = renderPseudoBlock(pseudo);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered pseudo: ${outputPath}`);
+  }
+}
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\infra.ts
+────────────────────────────────────────────────────────────────────────────────
+import { InfraDeclaration, InfraElement } from '../ast/types';
+import { GSValue, Trace } from '../runtime/values';
+import { escapeXml, readNumber, readString, resolveValue, round, svgDocument } from './common';
+
+export function renderInfra(decl: InfraDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>): string {
+  const width = readNumber(resolveValue(decl.properties?.width, values, traces), 1100);
+  const height = readNumber(resolveValue(decl.properties?.height, values, traces), 700);
+  const auto = autoLayout(decl.elements, width, height);
+  const positions = new Map<string, { x: number; y: number; w: number; h: number; type: string; label: string }>();
+
+  decl.elements.forEach((element, index) => {
+    const fallback = auto[index];
+    const x = readNumber(resolveValue(element.properties?.x, values, traces), fallback.x);
+    const y = readNumber(resolveValue(element.properties?.y, values, traces), fallback.y);
+    const w = readNumber(resolveValue(element.properties?.w, values, traces), 150);
+    const h = readNumber(resolveValue(element.properties?.h, values, traces), 72);
+    const label = readString(resolveValue(element.properties?.label, values, traces), element.name);
+    positions.set(element.name, { x, y, w, h, type: element.type, label });
+  });
+
+  let body = '';
+  body += `<text x="${width / 2}" y="42" text-anchor="middle" font-size="30" font-weight="800" fill="#0f172a">${escapeXml(decl.name)}</text>`;
+  body += `<text x="${width / 2}" y="68" text-anchor="middle" font-size="14" fill="#64748b">Provider: ${escapeXml(decl.provider)}</text>`;
+
+  decl.connections.forEach((connection, index) => {
+    const a = positions.get(connection.from);
+    const b = positions.get(connection.to);
+    if (!a || !b) return;
+    const startX = a.x + a.w / 2;
+    const startY = a.y + a.h;
+    const endX = b.x + b.w / 2;
+    const endY = b.y;
+    const midY = (startY + endY) / 2;
+    body += `<defs><marker id="infra-arrow-${index}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/></marker></defs>`;
+    body += `<path d="M ${round(startX)} ${round(startY)} L ${round(startX)} ${round(midY)} L ${round(endX)} ${round(midY)} L ${round(endX)} ${round(endY)}" fill="none" stroke="#475569" stroke-width="2.2" marker-end="url(#infra-arrow-${index})"/>`;
+    if (connection.label) {
+      body += `<text x="${round((startX + endX) / 2)}" y="${round(midY - 8)}" text-anchor="middle" font-size="11" fill="#475569">${escapeXml(connection.label)}</text>`;
+    }
+  });
+
+  decl.elements.forEach((element) => {
+    const pos = positions.get(element.name);
+    if (!pos) return;
+    body += renderInfraElement(pos.x, pos.y, pos.w, pos.h, pos.type, pos.label);
+  });
+
+  return svgDocument(width, height, body, '#f8fafc');
+}
+
+function autoLayout(elements: InfraElement[], width: number, height: number): { x: number; y: number }[] {
+  const cols = Math.ceil(Math.sqrt(Math.max(elements.length, 1)));
+  const rows = Math.ceil(Math.max(elements.length, 1) / cols);
+  const paddingX = 90;
+  const paddingY = 120;
+  const gapX = (width - paddingX * 2) / Math.max(cols, 1);
+  const gapY = (height - paddingY * 2) / Math.max(rows, 1);
+  return elements.map((_, index) => ({
+    x: paddingX + (index % cols) * gapX + 20,
+    y: paddingY + Math.floor(index / cols) * gapY,
+  }));
+}
+
+function renderInfraElement(x: number, y: number, w: number, h: number, type: string, label: string): string {
+  const kind = type.toLowerCase();
+  const theme = infraTheme(kind);
+  let svg = '';
+  switch (kind) {
+    case 'user':
+    case 'internet':
+      svg += `<ellipse cx="${round(x + w / 2)}" cy="${round(y + h / 2)}" rx="${round(w / 2)}" ry="${round(h / 2)}" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+    case 'db':
+    case 'database':
+      svg += `<ellipse cx="${round(x + w / 2)}" cy="${round(y + 12)}" rx="${round(w / 2)}" ry="12" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      svg += `<rect x="${round(x)}" y="${round(y + 12)}" width="${round(w)}" height="${round(h - 24)}" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      svg += `<ellipse cx="${round(x + w / 2)}" cy="${round(y + h - 12)}" rx="${round(w / 2)}" ry="12" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+    case 'queue':
+    case 'topic':
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="16" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      svg += `<path d="M ${round(x + 22)} ${round(y + h / 2)} h ${round(w - 44)}" stroke="${theme.stroke}" stroke-width="3" stroke-dasharray="10 6"/>`;
+      break;
+    default:
+      svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="16" fill="${theme.fill}" stroke="${theme.stroke}" stroke-width="2"/>`;
+      break;
+  }
+  svg += `<text x="${round(x + w / 2)}" y="${round(y + h / 2 + 5)}" text-anchor="middle" font-size="14" font-weight="700" fill="${theme.text}">${escapeXml(label)}</text>`;
+  return svg;
+}
+
+function infraTheme(kind: string): { fill: string; stroke: string; text: string } {
+  switch (kind) {
+    case 'user':
+    case 'internet':
+      return { fill: '#e0f2fe', stroke: '#0284c7', text: '#075985' };
+    case 'gateway':
+    case 'api':
+      return { fill: '#dbeafe', stroke: '#2563eb', text: '#1e3a8a' };
+    case 'lambda':
+    case 'compute':
+    case 'service':
+      return { fill: '#ede9fe', stroke: '#7c3aed', text: '#5b21b6' };
+    case 'db':
+    case 'database':
+    case 'storage':
+    case 'bucket':
+      return { fill: '#dcfce7', stroke: '#16a34a', text: '#166534' };
+    case 'queue':
+    case 'topic':
+      return { fill: '#fff7ed', stroke: '#ea580c', text: '#9a3412' };
+    default:
+      return { fill: '#f8fafc', stroke: '#475569', text: '#0f172a' };
+  }
+}
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\page.ts
+────────────────────────────────────────────────────────────────────────────────
+import { PageDeclaration } from '../ast/types';
+import { GSValue, Trace } from '../runtime/values';
+import { escapeXml, extractSvgDocument, fitIntoBox, readNumber, readString, resolveValue, round, svgDocument } from './common';
+
+interface RenderEmbed {
+  (target: string): string | null;
+}
+
+export function renderPage(decl: PageDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed): string {
+  const width = readNumber(resolveValue(decl.properties?.width, values, traces), 1440);
+  const height = readNumber(resolveValue(decl.properties?.height, values, traces), 900);
+  const columns = Math.max(1, readNumber(resolveValue(decl.properties?.columns, values, traces), 2));
+  const rows = Math.max(1, readNumber(resolveValue(decl.properties?.rows, values, traces), Math.max(1, Math.ceil(decl.placements.length / Math.max(columns, 1)))));
+  const gap = Math.max(0, readNumber(resolveValue(decl.properties?.gap, values, traces), 24));
+  const margin = Math.max(24, readNumber(resolveValue(decl.properties?.margin, values, traces), 32));
+  const title = readString(resolveValue(decl.properties?.title, values, traces), decl.name);
+  const subtitle = readString(resolveValue(decl.properties?.subtitle, values, traces), '');
+
+  const topOffset = subtitle ? 108 : 84;
+  const cellWidth = (width - margin * 2 - gap * (columns - 1)) / columns;
+  const cellHeight = (height - topOffset - margin - gap * (rows - 1)) / rows;
+
+  let body = '';
+  body += `<text x="${width / 2}" y="42" text-anchor="middle" font-size="30" font-weight="800" fill="#0f172a">${escapeXml(title)}</text>`;
+  if (subtitle) body += `<text x="${width / 2}" y="68" text-anchor="middle" font-size="15" fill="#64748b">${escapeXml(subtitle)}</text>`;
+
+  decl.placements.forEach((placement, index) => {
+    const match = placement.position.match(/cell\((\d+)\s*,\s*(\d+)\)/);
+    const row = match ? Number(match[1]) - 1 : Math.floor(index / columns);
+    const col = match ? Number(match[2]) - 1 : index % columns;
+    const x = margin + col * (cellWidth + gap);
+    const y = topOffset + row * (cellHeight + gap);
+    body += `<rect x="${round(x)}" y="${round(y)}" width="${round(cellWidth)}" height="${round(cellHeight)}" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2"/>`;
+    const embedded = renderEmbed(placement.target);
+    if (!embedded) {
+      body += `<text x="${round(x + cellWidth / 2)}" y="${round(y + cellHeight / 2)}" text-anchor="middle" font-size="14" fill="#475569">Missing: ${escapeXml(placement.target)}</text>`;
+      return;
+    }
+    const doc = extractSvgDocument(embedded);
+    const fit = fitIntoBox(doc.width, doc.height, cellWidth - 24, cellHeight - 24);
+    body += `<g transform="translate(${round(x + 12 + fit.dx)}, ${round(y + 12 + fit.dy)}) scale(${round(fit.scale, 4)})">${doc.svg}</g>`;
+  });
+
+  return svgDocument(width, height, body, '#f8fafc');
 }
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -10687,6 +11467,115 @@ function escapeXml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\pseudo.ts
+────────────────────────────────────────────────────────────────────────────────
+import { PseudoDeclaration } from '../ast/types';
+import { escapeXml, svgDocument } from './common';
+
+export function renderPseudoBlock(decl: PseudoDeclaration): string {
+  const width = 860;
+  const lineHeight = 22;
+  const header = 54;
+  const padding = 24;
+  const lines = decl.lines.length ? decl.lines : ['// empty'];
+  const height = header + padding + lines.length * lineHeight + 24;
+
+  let body = '';
+  body += `<rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="20" fill="#f8fafc" stroke="#cbd5e1"/>`;
+  body += `<text x="32" y="46" font-size="22" font-weight="700" fill="#0f172a">${escapeXml(decl.name)}</text>`;
+  body += `<line x1="32" y1="58" x2="${width - 32}" y2="58" stroke="#e2e8f0"/>`;
+  lines.forEach((line, index) => {
+    body += `<text x="40" y="${88 + index * lineHeight}" font-family="monospace" font-size="14" fill="#334155">${escapeXml(line)}</text>`;
+  });
+  return svgDocument(width, height, body);
+}
+
+────────────────────────────────────────────────────────────────────────────────
+FILE: src\renderer\scene3d.ts
+────────────────────────────────────────────────────────────────────────────────
+import { Scene3dDeclaration } from '../ast/types';
+import { GSValue, Trace } from '../runtime/values';
+import { readNumber, readString, resolveValue, round, svgDocument, escapeXml } from './common';
+
+interface ProjectedPoint { x: number; y: number; depth: number }
+
+export function renderScene3d(decl: Scene3dDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>): string {
+  const width = readNumber(resolveValue(decl.properties?.width, values, traces), 960);
+  const height = readNumber(resolveValue(decl.properties?.height, values, traces), 620);
+  const title = readString(resolveValue(decl.properties?.title, values, traces), decl.name);
+  const axisScale = readNumber(resolveValue(decl.properties?.scale, values, traces), 130);
+  const originX = width / 2;
+  const originY = height / 2 + 24;
+
+  const project = (x: number, y: number, z: number): ProjectedPoint => {
+    const px = (x - y) * 0.92;
+    const py = z + (x + y) * 0.46;
+    const depth = z + (x + y) * 0.2;
+    return { x: originX + px * axisScale, y: originY - py * axisScale, depth };
+  };
+
+  const entries = decl.elements.map((element) => ({
+    element,
+    p: project(
+      readNumber(resolveValue(element.properties?.x, values, traces), 0),
+      readNumber(resolveValue(element.properties?.y, values, traces), 0),
+      readNumber(resolveValue(element.properties?.z, values, traces), 0),
+    ),
+  })).sort((a, b) => a.p.depth - b.p.depth);
+
+  let body = '';
+  body += `<text x="${width / 2}" y="34" text-anchor="middle" font-size="24" font-weight="800" fill="#0f172a">${escapeXml(title)}</text>`;
+  body += renderAxes(project);
+  body += renderSphereGuide(originX, originY, axisScale * 1.02);
+
+  entries.forEach(({ element, p }) => {
+    const kind = element.type.toLowerCase();
+    const color = readString(resolveValue(element.properties?.color, values, traces), '#2563eb');
+    const label = readString(resolveValue(element.properties?.label, values, traces), element.name);
+    if (kind === 'sphere') {
+      const radius = readNumber(resolveValue(element.properties?.radius, values, traces), 0.12) * axisScale;
+      body += `<circle cx="${round(p.x)}" cy="${round(p.y)}" r="${round(Math.max(6, radius))}" fill="${color}" fill-opacity="0.82" stroke="#ffffff" stroke-width="2"/>`;
+    } else if (kind === 'cube') {
+      const size = readNumber(resolveValue(element.properties?.size, values, traces), 0.18) * axisScale;
+      body += `<rect x="${round(p.x - size / 2)}" y="${round(p.y - size / 2)}" width="${round(size)}" height="${round(size)}" rx="8" fill="${color}" fill-opacity="0.82" stroke="#ffffff" stroke-width="2"/>`;
+    } else if (kind === 'arrow3' || kind === 'vector') {
+      const dx = readNumber(resolveValue(element.properties?.dx, values, traces), 0);
+      const dy = readNumber(resolveValue(element.properties?.dy, values, traces), 0);
+      const dz = readNumber(resolveValue(element.properties?.dz, values, traces), 1);
+      const end = project(
+        readNumber(resolveValue(element.properties?.x, values, traces), 0) + dx,
+        readNumber(resolveValue(element.properties?.y, values, traces), 0) + dy,
+        readNumber(resolveValue(element.properties?.z, values, traces), 0) + dz,
+      );
+      body += `<defs><marker id="scene-arrow-${escapeXml(element.name)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${color}"/></marker></defs>`;
+      body += `<line x1="${round(p.x)}" y1="${round(p.y)}" x2="${round(end.x)}" y2="${round(end.y)}" stroke="${color}" stroke-width="4" marker-end="url(#scene-arrow-${escapeXml(element.name)})"/>`;
+    }
+    body += `<text x="${round(p.x + 10)}" y="${round(p.y - 10)}" font-size="12" fill="#334155">${escapeXml(label)}</text>`;
+  });
+
+  return svgDocument(width, height, body, '#ffffff');
+}
+
+function renderAxes(project: (x: number, y: number, z: number) => ProjectedPoint): string {
+  const o = project(0, 0, 0);
+  const xAxis = project(1.3, 0, 0);
+  const yAxis = project(0, 1.3, 0);
+  const zAxis = project(0, 0, 1.3);
+  let svg = '';
+  svg += `<line x1="${round(o.x)}" y1="${round(o.y)}" x2="${round(xAxis.x)}" y2="${round(xAxis.y)}" stroke="#2563eb" stroke-width="2.6"/>`;
+  svg += `<line x1="${round(o.x)}" y1="${round(o.y)}" x2="${round(yAxis.x)}" y2="${round(yAxis.y)}" stroke="#16a34a" stroke-width="2.6"/>`;
+  svg += `<line x1="${round(o.x)}" y1="${round(o.y)}" x2="${round(zAxis.x)}" y2="${round(zAxis.y)}" stroke="#dc2626" stroke-width="2.6"/>`;
+  svg += `<text x="${round(xAxis.x + 6)}" y="${round(xAxis.y)}" font-size="12" fill="#2563eb">x</text>`;
+  svg += `<text x="${round(yAxis.x + 6)}" y="${round(yAxis.y)}" font-size="12" fill="#16a34a">y</text>`;
+  svg += `<text x="${round(zAxis.x + 6)}" y="${round(zAxis.y)}" font-size="12" fill="#dc2626">z</text>`;
+  return svg;
+}
+
+function renderSphereGuide(cx: number, cy: number, radius: number): string {
+  return `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(radius)}" fill="none" stroke="#cbd5e1" stroke-width="1.6"/><ellipse cx="${round(cx)}" cy="${round(cy)}" rx="${round(radius)}" ry="${round(radius * 0.38)}" fill="none" stroke="#cbd5e1" stroke-dasharray="4 4"/><ellipse cx="${round(cx)}" cy="${round(cy)}" rx="${round(radius * 0.36)}" ry="${round(radius)}" fill="none" stroke="#e2e8f0" stroke-dasharray="4 4" transform="rotate(35 ${round(cx)} ${round(cy)})"/>`;
 }
 
 ────────────────────────────────────────────────────────────────────────────────
@@ -10977,6 +11866,7 @@ export class Evaluator {
       case 'ErdDeclaration':
       case 'InfraDeclaration':
       case 'PageDeclaration':
+      case 'PseudoDeclaration':
         this.scope.set((node as any).name, { ...node });
         break;
       case 'RenderDeclaration':

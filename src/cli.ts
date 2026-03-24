@@ -1,30 +1,30 @@
 #!/usr/bin/env node
 
 import * as fs from 'fs';
-import * as path from 'path';
 import { Parser } from './parser';
 import { Evaluator } from './runtime';
 import { Renderer } from './renderer';
 
 interface CliOptions {
-  command: string;
+  command: 'check' | 'run' | 'render';
   file: string;
   outputDir?: string;
 }
 
 function parseArgs(args: string[]): CliOptions | null {
-  const command = args[0];
-  const file = args[1];
+  const [command, file, ...rest] = args;
+  if (!command || !file) return null;
+  if (!['check', 'run', 'render'].includes(command)) return null;
 
-  if (!command || !file) {
-    return null;
+  let outputDir: string | undefined;
+  for (let i = 0; i < rest.length; i += 1) {
+    if (rest[i] === '--output' || rest[i] === '-o') {
+      outputDir = rest[i + 1];
+      i += 1;
+    }
   }
 
-  if (!['check', 'run', 'render'].includes(command)) {
-    return null;
-  }
-
-  return { command, file };
+  return { command: command as CliOptions['command'], file, outputDir };
 }
 
 function printUsage(): void {
@@ -35,35 +35,27 @@ Usage:
   graphscript <command> <file> [options]
 
 Commands:
-  check <file.gs>    Parse and validate the file
+  check <file.gs>     Parse and validate the file
   run <file.gs>       Run algorithms and display traces
   render <file.gs>    Render charts and flows to SVG
 
 Options:
   --output <dir>      Output directory for render command (default: ./output)
-
-Examples:
-  graphscript check examples/hello-chart.gs
-  graphscript run examples/hello-chart.gs
-  graphscript render examples/hello-chart.gs --output ./output
 `);
 }
 
 function main(args: string[]): void {
   const options = parseArgs(args);
-
   if (!options) {
     printUsage();
     process.exit(1);
   }
-
   if (!fs.existsSync(options.file)) {
     console.error(`Error: File not found: ${options.file}`);
     process.exit(1);
   }
 
   const source = fs.readFileSync(options.file, 'utf-8');
-
   try {
     const parser = new Parser();
     const program = parser.parse(source);
@@ -71,7 +63,7 @@ function main(args: string[]): void {
 
     if (options.command === 'check') {
       console.log('✓ Validation: OK');
-      process.exit(0);
+      return;
     }
 
     const evaluator = new Evaluator();
@@ -80,36 +72,24 @@ function main(args: string[]): void {
 
     if (options.command === 'run') {
       const traces = evaluator.getTraces();
-
-      if (traces.size === 0) {
-        console.log('\nNo algorithm traces found.');
-      }
-
+      if (traces.size === 0) console.log('\nNo algorithm traces found.');
       for (const [name, trace] of traces.entries()) {
-        if (trace.rows.length > 0) {
-          console.log(`\nTrace: ${name}`);
-          console.log(trace.columns.join('\t'));
-          for (const row of trace.rows) {
-            console.log(Object.values(row).join('\t'));
-          }
+        if (!trace.rows.length) continue;
+        console.log(`\nTrace: ${name}`);
+        console.log(trace.columns.join('\t'));
+        for (const row of trace.rows) {
+          console.log(trace.columns.map((column) => String(row[column] ?? '')).join('\t'));
         }
       }
+      return;
     }
 
-    if (options.command === 'render') {
-      const traces = evaluator.getTraces();
-      const renderer = new Renderer({ outputDir: options.outputDir || './output' });
-
-      console.log('\nRendering...');
-      renderer.render(values, traces, { outputDir: options.outputDir || './output' });
-      console.log('✓ Render: Complete');
-    }
-
+    const renderer = new Renderer({ outputDir: options.outputDir || './output' });
+    console.log('\nRendering...');
+    renderer.render(values, evaluator.getTraces(), { outputDir: options.outputDir || './output' });
+    console.log('✓ Render: Complete');
   } catch (error: any) {
     console.error(`\n✗ Error: ${error.message}`);
-    if (process.env.DEBUG) {
-      console.error(error.stack);
-    }
     process.exit(1);
   }
 }

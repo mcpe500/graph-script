@@ -149,16 +149,26 @@ export function wrapText(text: string, maxChars: number, maxLines = 3): string[]
   if (!words.length) return [''];
   const lines: string[] = [];
   let current = '';
+  let consumed = 0;
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word;
     if (candidate.length <= maxChars || !current) {
       current = candidate;
+      consumed += 1;
     } else {
       lines.push(current);
       current = word;
+      consumed += 1;
       if (lines.length === maxLines - 1) break;
     }
   }
   if (current) lines.push(current);
-  return lines.slice(0, maxLines);
+  const limited = lines.slice(0, maxLines);
+  if (consumed < words.length && limited.length) {
+    const lastIndex = limited.length - 1;
+    const room = Math.max(0, maxChars - 3);
+    const base = limited[lastIndex].slice(0, room).trimEnd();
+    limited[lastIndex] = `${base}...`;
+  }
+  return limited;
 }

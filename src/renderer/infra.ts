@@ -3,18 +3,18 @@ import { GSValue, Trace } from '../runtime/values';
 import { escapeXml, readNumber, readString, resolveValue, round, svgDocument } from './common';
 
 export function renderInfra(decl: InfraDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>): string {
-  const width = readNumber(resolveValue(decl.properties?.width, values, traces), 1100);
-  const height = readNumber(resolveValue(decl.properties?.height, values, traces), 700);
+  const width = readNumber(resolveValue(decl.properties.width, values, traces), 1100);
+  const height = readNumber(resolveValue(decl.properties.height, values, traces), 700);
   const auto = autoLayout(decl.elements, width, height);
   const positions = new Map<string, { x: number; y: number; w: number; h: number; type: string; label: string }>();
 
   decl.elements.forEach((element, index) => {
     const fallback = auto[index];
-    const x = readNumber(resolveValue(element.properties?.x, values, traces), fallback.x);
-    const y = readNumber(resolveValue(element.properties?.y, values, traces), fallback.y);
-    const w = readNumber(resolveValue(element.properties?.w, values, traces), 150);
-    const h = readNumber(resolveValue(element.properties?.h, values, traces), 72);
-    const label = readString(resolveValue(element.properties?.label, values, traces), element.name);
+    const x = readNumber(resolveValue(element.properties.x, values, traces), fallback.x);
+    const y = readNumber(resolveValue(element.properties.y, values, traces), fallback.y);
+    const w = readNumber(resolveValue(element.properties.w, values, traces), 150);
+    const h = readNumber(resolveValue(element.properties.h, values, traces), 72);
+    const label = readString(resolveValue(element.properties.label, values, traces), element.name);
     positions.set(element.name, { x, y, w, h, type: element.type, label });
   });
 

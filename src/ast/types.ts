@@ -230,7 +230,6 @@ export interface Scene3dElement {
 export interface ErdDeclaration {
   type: 'ErdDeclaration';
   name: string;
-  properties: Record<string, Expression>;
   tables: ErdTable[];
   relationships: ErdRelationship[];
   location: SourceLocation;
@@ -457,5 +456,5 @@ export const TOP_LEVEL_KEYWORDS = [
 ] as const;
 
 export const STATEMENT_KEYWORDS = [
-  'if', 'else', 'while', 'for', 'return', 'break', 'continue', 'emit', 'end'
+  'if', 'else', 'while', 'for', 'return', 'break', 'continue', 'emit'
 ] as const;

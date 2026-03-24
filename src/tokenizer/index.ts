@@ -1,101 +1,76 @@
-import { Token, Position, SourceLocation, TokenType } from '../ast/types';
-import { KEYWORDS, BLOCK_KEYWORDS } from './types';
+import { Token, Position, TokenType } from '../ast/types';
 
 export class Tokenizer {
-  private source: string = '';
-  private pos: number = 0;
-  private line: number = 1;
-  private column: number = 1;
+  private source = '';
+  private pos = 0;
+  private line = 1;
+  private column = 1;
   private tokens: Token[] = [];
 
   tokenize(source: string): Token[] {
     this.source = source;
-    this.reset();
-    this.scanAll();
-    return this.tokens;
-  }
-
-  private reset(): void {
     this.pos = 0;
     this.line = 1;
     this.column = 1;
     this.tokens = [];
-  }
 
-  private scanAll(): void {
     while (!this.isAtEnd()) {
-      this.skipWhitespace();
-      if (this.isAtEnd()) break;
-
+      const ch = this.peek();
       const start = this.currentPos();
 
-      if (this.match('#')) {
-        this.scanComment();
-        continue;
-      }
-
-      if (this.match('\n') || this.match('\r')) {
-        this.addToken('NEWLINE', '\n', start);
+      if (ch === ' ' || ch === '\t' || ch === '\r') {
         this.advance();
-        if (this.match('\n')) this.advance();
         continue;
       }
 
-      if (this.match('"') || this.match("'")) {
-        this.scanString(start);
+      if (ch === '\n') {
+        this.advance();
+        this.addToken('NEWLINE', '\n', start);
         continue;
       }
 
-      if (this.isDigit(this.peek())) {
+      if (ch === '#') {
+        while (!this.isAtEnd() && this.peek() !== '\n') this.advance();
+        continue;
+      }
+
+      if (ch === '"' || ch === "'") {
+        this.scanString(start, ch);
+        continue;
+      }
+
+      if (this.isDigit(ch)) {
         this.scanNumber(start);
         continue;
       }
 
-      if (this.isAlpha(this.peek()) || this.peek() === '_') {
+      if (this.isAlpha(ch) || ch === '_') {
         this.scanIdentifier(start);
         continue;
       }
 
       if (this.scanOperator(start)) continue;
+      if (this.scanPunctuation(start)) continue;
 
-      if (this.scanBracket(start)) continue;
-
-      this.error(`Unexpected character: ${this.peek()}`);
       this.advance();
     }
 
     this.addToken('EOF', '', this.currentPos());
+    return this.tokens;
   }
 
-  private skipWhitespace(): void {
-    while (!this.isAtEnd() && ' \t\r'.includes(this.peek())) {
-      this.advance();
-    }
-  }
-
-  private scanComment(): void {
-    while (!this.isAtEnd() && this.peek() !== '\n') {
-      this.advance();
-    }
-  }
-
-  private scanString(start: Position): void {
-    const quote = this.peek();
+  private scanString(start: Position, quote: string): void {
     this.advance();
     let value = '';
 
     while (!this.isAtEnd() && this.peek() !== quote) {
-      if (this.peek() === '\\' && !this.isAtEnd()) {
-        this.advance();
-        const ch = this.peek();
-        if (ch === 'n') value += '\n';
-        else if (ch === 't') value += '\t';
-        else if (ch === 'r') value += '\r';
-        else value += ch;
+      const ch = this.advance();
+      if (ch === '\\' && !this.isAtEnd()) {
+        const next = this.advance();
+        value += next === 'n' ? '\n' : next === 't' ? '\t' : next === 'r' ? '\r' : next;
       } else {
-        value += this.peek();
+        value += ch;
       }
-      this.advance();
     }
 
     if (!this.isAtEnd()) this.advance();
@@ -104,28 +79,24 @@ export class Tokenizer {
 
   private scanNumber(start: Position): void {
     let value = '';
-
-    while (!this.isAtEnd() && (this.isDigit(this.peek()) || this.peek() === '.')) {
-      if (this.peek() === '.' && !this.isDigit(this.source[this.pos + 1])) break;
-      value += this.peek();
-      this.advance();
+    while (!this.isAtEnd() && this.isDigit(this.peek())) value += this.advance();
+    if (!this.isAtEnd() && this.peek() === '.' && this.isDigit(this.peekNext())) {
+      value += this.advance();
+      while (!this.isAtEnd() && this.isDigit(this.peek())) value += this.advance();
     }
-
     this.addToken('NUMBER', value, start);
   }
 
   private scanIdentifier(start: Position): void {
     let value = '';
-
     while (!this.isAtEnd() && (this.isAlphaNumeric(this.peek()) || this.peek() === '_')) {
-      value += this.peek();
-      this.advance();
+      value += this.advance();
     }
 
-    if (KEYWORDS.has(value)) {
-      this.addToken(value.toUpperCase() as TokenType, value, start);
-    } else if (BLOCK_KEYWORDS.has(value)) {
-      this.addToken(value.toUpperCase() as TokenType, value, start);
+    if (value === 'true' || value === 'false') {
+      this.addToken('BOOLEAN', value, start);
+    } else if (value === 'null') {
+      this.addToken('NULL', value, start);
     } else {
       this.addToken('IDENTIFIER', value, start);
     }
@@ -133,91 +104,84 @@ export class Tokenizer {
 
   private scanOperator(start: Position): boolean {
     const ch = this.peek();
+    const next = this.peekNext();
 
-    if ('+-*/%^<>!&|'.includes(ch)) {
-      let value = ch;
+    if (ch === '-' && next === '>') {
+      this.advance();
+      this.advance();
+      this.addToken('ARROW', '->', start);
+      return true;
+    }
 
-      if (ch === '-' && this.peekNext() === '>') {
-        this.advance();
-        value = '->';
-        this.addToken('ARROW', value, start);
-        return true;
-      }
+    const twoChar = `${ch}${next}`;
+    if (['==', '!=', '<=', '>=', '&&', '||'].includes(twoChar)) {
+      this.advance();
+      this.advance();
+      this.addToken('OPERATOR', twoChar, start);
+      return true;
+    }
 
-      if (ch === '=' && this.peekNext() === '=') {
-        this.advance();
-        value = '==';
-      } else if (ch === '!' && this.peekNext() === '=') {
-        this.advance();
-        value = '!=';
-      } else if (ch === '<' && this.peekNext() === '=') {
-        this.advance();
-        value = '<=';
-      } else if (ch === '>' && this.peekNext() === '=') {
-        this.advance();
-        value = '>=';
-      } else if (ch === '&' && this.peekNext() === '&') {
-        this.advance();
-        value = '&&';
-      } else if (ch === '|' && this.peekNext() === '|') {
-        this.advance();
-        value = '||';
-      } else {
-        this.advance();
-      }
-
-      this.addToken('OPERATOR', value, start);
+    if ('+-*/%^<>!?'.includes(ch)) {
+      this.advance();
+      this.addToken('OPERATOR', ch, start);
       return true;
     }
 
     return false;
   }
 
-  private scanBracket(start: Position): boolean {
+  private scanPunctuation(start: Position): boolean {
     const ch = this.peek();
+    const map: Record<string, TokenType> = {
+      '[': 'LBRACKET',
+      ']': 'RBRACKET',
+      '(': 'LPAREN',
+      ')': 'RPAREN',
+      '{': 'LBRACE',
+      '}': 'RBRACE',
+      ':': 'COLON',
+      ',': 'COMMA',
+      '|': 'PIPE',
+      '.': 'PERIOD',
+      '=': 'EQUALS',
+    };
 
-    switch (ch) {
-      case '[': this.advance(); this.addToken('LBRACKET', '[', start); return true;
-      case ']': this.advance(); this.addToken('RBRACKET', ']', start); return true;
-      case '(': this.advance(); this.addToken('LPAREN', '(', start); return true;
-      case ')': this.advance(); this.addToken('RPAREN', ')', start); return true;
-      case '{': this.advance(); this.addToken('LBRACE', '{', start); return true;
-      case '}': this.advance(); this.addToken('RBRACE', '}', start); return true;
-      case ':': this.advance(); this.addToken('COLON', ':', start); return true;
-      case ',': this.advance(); this.addToken('COMMA', ',', start); return true;
-      case '|': this.advance(); this.addToken('PIPE', '|', start); return true;
-      case '.': this.advance(); this.addToken('PERIOD', '.', start); return true;
-      case '=':
-        this.advance();
-        this.addToken('EQUALS', '=', start);
-        return true;
-    }
-
-    return false;
+    const type = map[ch];
+    if (!type) return false;
+    this.advance();
+    this.addToken(type, ch, start);
+    return true;
   }
 
-  private peek(): string {
-    return this.source[this.pos];
+  private addToken(type: TokenType, value: string, start: Position): void {
+    this.tokens.push({
+      type,
+      value,
+      location: { start, end: this.currentPos() },
+    });
   }
 
-  private peekNext(): string {
-    return this.source[this.pos + 1] || '';
+  private currentPos(): Position {
+    return { line: this.line, column: this.column, offset: this.pos };
   }
 
   private advance(): string {
-    const ch = this.source[this.pos];
-    this.pos++;
+    const ch = this.source[this.pos++] ?? '';
     if (ch === '\n') {
-      this.line++;
+      this.line += 1;
       this.column = 1;
     } else {
-      this.column++;
+      this.column += 1;
     }
     return ch;
   }
 
-  private match(expected: string): boolean {
-    return this.peek() === expected;
+  private peek(): string {
+    return this.source[this.pos] ?? '';
+  }
+
+  private peekNext(): string {
+    return this.source[this.pos + 1] ?? '';
   }
 
   private isAtEnd(): boolean {
@@ -229,33 +193,10 @@ export class Tokenizer {
   }
 
   private isAlpha(ch: string): boolean {
-    return /[a-zA-Z_]/.test(ch);
+    return /[A-Za-z]/.test(ch);
   }
 
   private isAlphaNumeric(ch: string): boolean {
-    return /[a-zA-Z0-9_]/.test(ch);
-  }
-
-  private currentPos(): Position {
-    return {
-      line: this.line,
-      column: this.column,
-      offset: this.pos
-    };
-  }
-
-  private addToken(type: TokenType, value: string, start: Position): void {
-    this.tokens.push({
-      type,
-      value,
-      location: {
-        start,
-        end: this.currentPos()
-      }
-    });
-  }
-
-  private error(message: string): void {
-    console.error(`Tokenizer error at ${this.line}:${this.column}: ${message}`);
+    return /[A-Za-z0-9]/.test(ch);
   }
 }

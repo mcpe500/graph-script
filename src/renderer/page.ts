@@ -7,14 +7,14 @@ interface RenderEmbed {
 }
 
 export function renderPage(decl: PageDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed): string {
-  const width = readNumber(resolveValue(decl.properties?.width, values, traces), 1440);
-  const height = readNumber(resolveValue(decl.properties?.height, values, traces), 900);
-  const columns = Math.max(1, readNumber(resolveValue(decl.properties?.columns, values, traces), 2));
-  const rows = Math.max(1, readNumber(resolveValue(decl.properties?.rows, values, traces), Math.max(1, Math.ceil(decl.placements.length / Math.max(columns, 1)))));
-  const gap = Math.max(0, readNumber(resolveValue(decl.properties?.gap, values, traces), 24));
-  const margin = Math.max(24, readNumber(resolveValue(decl.properties?.margin, values, traces), 32));
-  const title = readString(resolveValue(decl.properties?.title, values, traces), decl.name);
-  const subtitle = readString(resolveValue(decl.properties?.subtitle, values, traces), '');
+  const width = readNumber(resolveValue(decl.properties.width, values, traces), 1440);
+  const height = readNumber(resolveValue(decl.properties.height, values, traces), 900);
+  const columns = Math.max(1, readNumber(resolveValue(decl.properties.columns, values, traces), 2));
+  const rows = Math.max(1, readNumber(resolveValue(decl.properties.rows, values, traces), Math.max(1, Math.ceil(decl.placements.length / Math.max(columns, 1)))));
+  const gap = Math.max(0, readNumber(resolveValue(decl.properties.gap, values, traces), 24));
+  const margin = Math.max(24, readNumber(resolveValue(decl.properties.margin, values, traces), 32));
+  const title = readString(resolveValue(decl.properties.title, values, traces), decl.name);
+  const subtitle = readString(resolveValue(decl.properties.subtitle, values, traces), '');
 
   const topOffset = subtitle ? 108 : 84;
   const cellWidth = (width - margin * 2 - gap * (columns - 1)) / columns;

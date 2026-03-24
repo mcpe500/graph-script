@@ -1,23 +1,38 @@
 import {
-  Program, TopLevelNode, Expression, Statement, AlgoDeclaration,
-  FlowDeclaration, ChartDeclaration, DiagramDeclaration
+  Expression,
+  Program,
+  Statement,
+  TopLevelNode,
+  AlgoDeclaration,
 } from '../ast/types';
-import { ScopeManager } from './scope';
-import { GSValue, GSFunction, GSAlgorithm, Trace, isTruthy, isEqual, compare } from './values';
 import { createBuiltins, createGSFunction } from './builtins';
+import { ScopeManager } from './scope';
+import { compare, GSAlgorithm, GSFunction, GSValue, isEqual, isTruthy, Trace } from './values';
+
+interface ReturnSignal {
+  kind: 'return';
+  value: GSValue;
+}
+
+interface LoopSignal {
+  kind: 'break' | 'continue';
+}
+
+type ControlSignal = ReturnSignal | LoopSignal;
+
+function isControlSignal(value: unknown): value is ControlSignal {
+  return !!value && typeof value === 'object' && 'kind' in (value as Record<string, unknown>);
+}
 
 export class Evaluator {
-  private scope: ScopeManager;
-  private builtins: Record<string, GSValue>;
-  private algorithms: Map<string, GSAlgorithm> = new Map();
-  private traces: Map<string, Trace> = new Map();
+  private scope = new ScopeManager();
+  private algorithms = new Map<string, GSAlgorithm>();
+  private traces = new Map<string, Trace>();
   private currentAlgo: GSAlgorithm | null = null;
 
   constructor() {
-    this.scope = new ScopeManager();
-    this.builtins = createBuiltins();
-    for (const [name, fn] of Object.entries(this.builtins)) {
-      this.scope.set(name, fn);
+    for (const [name, value] of Object.entries(createBuiltins())) {
+      this.scope.define(name, value);
     }
   }
 
@@ -32,6 +47,10 @@ export class Evaluator {
     return this.traces;
   }
 
+  getTrace(name: string): Trace | undefined {
+    return this.traces.get(name);
+  }
+
   getAlgorithm(name: string): GSAlgorithm | undefined {
     return this.algorithms.get(name);
   }
@@ -39,26 +58,36 @@ export class Evaluator {
   private executeTopLevel(node: TopLevelNode): void {
     switch (node.type) {
       case 'UseStatement':
-        break;
       case 'ImportStatement':
-        break;
+      case 'RenderDeclaration':
+        return;
       case 'ConstDeclaration':
-        this.scope.set(node.name, this.evalExpression(node.value));
-        break;
+        this.scope.define(node.name, this.evalExpression(node.value));
+        return;
       case 'DataDeclaration':
         for (const binding of node.bindings) {
-          const value = this.evalExpression(binding.value);
-          this.scope.set(binding.name, value);
-          if (value && typeof value === 'object' && (value as any).type === 'algorithm') {
-            this.runAlgorithm(value as GSAlgorithm, []);
-          }
+          this.scope.define(binding.name, this.evalExpression(binding.value));
         }
-        break;
+        return;
       case 'FuncDeclaration':
-        this.scope.set(node.name, createGSFunction(node.params, node.body, this.scope.getAllValues()));
-        break;
+        this.scope.define(node.name, createGSFunction(node.params, node.body, this.scope.getAllValues()));
+        return;
+      case 'AlgoDeclaration': {
+        const algo: GSAlgorithm = {
+          type: 'algorithm',
+          name: node.name,
+          params: node.params,
+          body: node.body,
+          trace: { type: 'trace', columns: [], rows: [] },
+        };
+        this.algorithms.set(node.name, algo);
+        this.traces.set(node.name, algo.trace);
+        this.scope.define(node.name, algo);
+        return;
+      }
       case 'ThemeDeclaration':
       case 'StyleDeclaration':
+      case 'PseudoDeclaration':
       case 'ChartDeclaration':
       case 'FlowDeclaration':
       case 'DiagramDeclaration':
@@ -68,85 +97,89 @@ export class Evaluator {
       case 'ErdDeclaration':
       case 'InfraDeclaration':
       case 'PageDeclaration':
-      case 'PseudoDeclaration':
-        this.scope.set((node as any).name, { ...node });
-        break;
-      case 'RenderDeclaration':
-        break;
+        this.scope.define((node as any).name, { ...node });
+        return;
       case 'SubDeclaration':
-        this.scope.set(node.name, createGSFunction(node.params, node.body, this.scope.getAllValues()));
-        break;
-      case 'ComponentDeclaration':
-        break;
-      case 'AlgoDeclaration':
-        const algo: GSAlgorithm = {
-          type: 'algorithm',
-          name: node.name,
-          params: node.params,
-          body: node.body,
-          trace: { type: 'trace', columns: [], rows: [] }
-        };
-        this.algorithms.set(node.name, algo);
-        this.traces.set(node.name, algo.trace);
-        this.scope.set(node.name, algo);
-        break;
+        this.scope.define(node.name, createGSFunction(node.params, [], this.scope.getAllValues()));
+        return;
+      case 'ComponentDeclaration': {
+        const moduleValue = this.scope.get(node.module);
+        if (moduleValue && typeof moduleValue === 'object' && (moduleValue as GSFunction).type === 'function') {
+          const args = Object.keys(node.args).map((key) => this.evalExpression(node.args[key]));
+          this.scope.define(node.name, this.runFunction(moduleValue as GSFunction, args));
+        }
+        return;
+      }
     }
   }
 
   private evalExpression(expr: Expression): GSValue {
-    if (!expr || !expr.type) return null;
-
     switch (expr.type) {
       case 'Literal':
         return expr.value;
       case 'Identifier':
-        const val = this.scope.get(expr.name);
-        return val ?? null;
-      case 'BinaryExpression':
-        return this.evalBinary(expr);
-      case 'UnaryExpression':
-        return this.evalUnary(expr);
-      case 'CallExpression':
-        return this.evalCall(expr);
-      case 'MemberExpression':
-        return this.evalMember(expr);
-      case 'IndexExpression':
-        return this.evalIndex(expr);
+        return this.scope.get(expr.name) ?? null;
       case 'ArrayExpression':
-        return expr.elements.map(e => this.evalExpression(e));
-      case 'ObjectExpression':
-        const obj: Record<string, GSValue> = {};
-        for (const prop of expr.properties) {
-          obj[prop.key] = this.evalExpression(prop.value);
-        }
-        return obj;
+        return expr.elements.map((element) => this.evalExpression(element));
+      case 'ObjectExpression': {
+        const result: Record<string, GSValue> = {};
+        for (const prop of expr.properties) result[prop.key] = this.evalExpression(prop.value);
+        return result;
+      }
+      case 'BinaryExpression':
+        return this.evalBinary(expr.operator, expr.left, expr.right);
+      case 'UnaryExpression': {
+        const value = this.evalExpression(expr.operand);
+        return expr.operator === '-' ? -(value as number) : !isTruthy(value);
+      }
+      case 'CallExpression': {
+        const callee = typeof expr.callee === 'string'
+          ? expr.callee
+          : expr.callee.type === 'Identifier'
+            ? expr.callee.name
+            : null;
+        if (!callee) return null;
+        const fn = this.scope.get(callee);
+        const args = expr.args.map((arg) => this.evalExpression(arg));
+        if (typeof fn === 'function') return fn(...args);
+        if (fn && typeof fn === 'object' && (fn as GSFunction).type === 'function') return this.runFunction(fn as GSFunction, args);
+        if (fn && typeof fn === 'object' && (fn as GSAlgorithm).type === 'algorithm') return this.runAlgorithm(fn as GSAlgorithm, args);
+        return null;
+      }
+      case 'MemberExpression': {
+        const object = this.evalExpression(expr.object);
+        if (object && typeof object === 'object') return (object as Record<string, GSValue>)[expr.property] ?? null;
+        return null;
+      }
+      case 'IndexExpression': {
+        const object = this.evalExpression(expr.object);
+        const index = this.evalExpression(expr.index);
+        if (Array.isArray(object)) return object[index as number] ?? null;
+        if (object && typeof object === 'object') return (object as Record<string, GSValue>)[String(index)] ?? null;
+        if (typeof object === 'string') return object[index as number] ?? null;
+        return null;
+      }
       case 'ConditionalExpression':
         return isTruthy(this.evalExpression(expr.test))
           ? this.evalExpression(expr.consequent)
           : this.evalExpression(expr.alternate);
-      default:
-        return null;
     }
   }
 
-  private evalBinary(expr: Expression & { operator: string; left: Expression; right: Expression }): GSValue {
-    const left = this.evalExpression(expr.left);
-    const right = this.evalExpression(expr.right);
-    const op = expr.operator;
-
-    switch (op) {
-      case '+': return (left as number) + (right as number);
-      case '-': return (left as number) - (right as number);
-      case '*': return (left as number) * (right as number);
-      case '/': return (left as number) / (right as number);
-      case '%': return (left as number) % (right as number);
+  private evalBinary(operator: string, leftExpr: Expression, rightExpr: Expression): GSValue {
+    const left = this.evalExpression(leftExpr);
+    const right = this.evalExpression(rightExpr);
+    switch (operator) {
+      case '+':
+        if (typeof left === 'string' || typeof right === 'string') return String(left ?? '') + String(right ?? '');
+        return Number(left ?? 0) + Number(right ?? 0);
+      case '-': return Number(left ?? 0) - Number(right ?? 0);
+      case '*': return Number(left ?? 0) * Number(right ?? 0);
+      case '/': return Number(left ?? 0) / Number(right ?? 0);
+      case '%': return Number(left ?? 0) % Number(right ?? 0);
       case '^': return Math.pow(left as number, right as number);
-      case '==':
-      case '===':
-        return isEqual(left, right);
-      case '!=':
-      case '!==':
-        return !isEqual(left, right);
+      case '==': return isEqual(left, right);
+      case '!=': return !isEqual(left, right);
       case '<': return compare(left, right, '<');
       case '>': return compare(left, right, '>');
       case '<=': return compare(left, right, '<=');
@@ -157,209 +190,103 @@ export class Evaluator {
     }
   }
 
-  private evalUnary(expr: Expression & { operator: string; operand: Expression }): GSValue {
-    const operand = this.evalExpression(expr.operand);
-    switch (expr.operator) {
-      case '-': return -(operand as number);
-      case 'not': return !isTruthy(operand);
-      default: return null;
-    }
-  }
-
-  private evalCall(expr: Expression & { callee: Expression | string; args: Expression[] }): GSValue {
-    const callee = typeof expr.callee === 'string' ? expr.callee : (expr.callee as Expression & { name: string }).name;
-    const fn = this.scope.get(callee);
-    const args = expr.args.map(a => this.evalExpression(a));
-
-    if (fn && typeof fn === 'object' && !Array.isArray(fn) && (fn as any).type === 'function') {
-      return this.runFunction(fn as GSFunction, args);
-    }
-
-    if (fn && typeof fn === 'object' && !Array.isArray(fn) && (fn as any).type === 'algorithm') {
-      return this.runAlgorithm(fn as GSAlgorithm, args);
-    }
-
-    if (typeof fn === 'function') {
-      return fn(...args);
-    }
-
-    return null;
-  }
-
-  private evalMember(expr: Expression & { object: Expression; property: string }): GSValue {
-    const obj = this.evalExpression(expr.object);
-    if (typeof obj === 'object' && obj !== null) {
-      return (obj as any)[expr.property];
-    }
-    return null;
-  }
-
-  private evalIndex(expr: Expression & { object: Expression; index: Expression }): GSValue {
-    const obj = this.evalExpression(expr.object);
-    const index = this.evalExpression(expr.index);
-    if (Array.isArray(obj)) {
-      return obj[index as number];
-    }
-    if (typeof obj === 'string') {
-      return obj.charAt(index as number);
-    }
-    if (typeof obj === 'object' && obj !== null) {
-      return (obj as any)[String(index)];
-    }
-    return null;
-  }
-
   private runFunction(fn: GSFunction, args: GSValue[]): GSValue {
-    const oldScope = this.scope.getCurrentScope();
-    const newScope = this.scope.createScope(oldScope);
-
-    for (let i = 0; i < fn.params.length; i++) {
-      newScope.values[fn.params[i]] = args[i];
+    const scope = this.scope.createScope(this.scope.getCurrentScope());
+    fn.params.forEach((param, index) => {
+      scope.values[param] = args[index];
+    });
+    for (const [key, value] of Object.entries(fn.closure)) {
+      if (!(key in scope.values)) scope.values[key] = value;
     }
-
-    for (const key of Object.keys(fn.closure)) {
-      if (!(key in newScope.values)) {
-        newScope.values[key] = fn.closure[key];
-      }
-    }
-
-    this.scope.pushScope(newScope);
-    let result: GSValue = null;
-
-    for (const stmt of fn.body) {
-      result = this.evalStatement(stmt);
-      if (stmt.type === 'ReturnStatement') break;
-    }
-
+    this.scope.pushScope(scope);
+    const signal = this.evalStatements(fn.body);
     this.scope.popScope();
-    return result;
+    return signal && signal.kind === 'return' ? signal.value : null;
   }
 
   private runAlgorithm(algo: GSAlgorithm, args: GSValue[]): GSValue {
-    const oldScope = this.scope.getCurrentScope();
-    const newScope = this.scope.createScope(oldScope);
+    algo.trace.columns = [];
+    algo.trace.rows = [];
 
-    for (let i = 0; i < algo.params.length; i++) {
-      newScope.values[algo.params[i]] = args[i];
-    }
-
-    const oldAlgo = this.currentAlgo;
+    const scope = this.scope.createScope(this.scope.getCurrentScope());
+    algo.params.forEach((param, index) => {
+      scope.values[param] = args[index];
+    });
+    this.scope.pushScope(scope);
+    const previousAlgo = this.currentAlgo;
     this.currentAlgo = algo;
-
-    this.scope.pushScope(newScope);
-    let result: GSValue = null;
-
-    for (const stmt of algo.body) {
-      result = this.evalStatement(stmt);
-      if (stmt.type === 'ReturnStatement') break;
-    }
-
+    const signal = this.evalStatements(algo.body);
+    this.currentAlgo = previousAlgo;
     this.scope.popScope();
-    this.currentAlgo = oldAlgo;
-
-    return result;
+    return signal && signal.kind === 'return' ? signal.value : null;
   }
 
-  private evalStatement(stmt: Statement): GSValue {
-    switch (stmt.type) {
+  private evalStatements(statements: Statement[]): ControlSignal | null {
+    for (const statement of statements) {
+      const result = this.evalStatement(statement);
+      if (isControlSignal(result)) return result;
+    }
+    return null;
+  }
+
+  private evalStatement(statement: Statement): ControlSignal | null {
+    switch (statement.type) {
       case 'ExpressionStatement':
-        return this.evalExpression(stmt.expression);
+        this.evalExpression(statement.expression);
+        return null;
       case 'AssignmentStatement':
-        this.scope.set(stmt.target, this.evalExpression(stmt.value));
+        this.scope.set(statement.target, this.evalExpression(statement.value));
         return null;
-      case 'IfStatement':
-        return this.evalIfStatement(stmt);
-      case 'WhileStatement':
-        return this.evalWhileStatement(stmt);
-      case 'ForStatement':
-        return this.evalForStatement(stmt);
       case 'ReturnStatement':
-        return stmt.value ? this.evalExpression(stmt.value) : null;
+        return { kind: 'return', value: statement.value ? this.evalExpression(statement.value) : null };
       case 'BreakStatement':
-        return { type: 'break' };
+        return { kind: 'break' };
       case 'ContinueStatement':
-        return { type: 'continue' };
+        return { kind: 'continue' };
       case 'EmitStatement':
-        return this.evalEmitStatement(stmt);
-      default:
+        this.emitTraceRow(statement.fields.map((field) => ({ name: field.name, value: this.evalExpression(field.value) })));
         return null;
-    }
-  }
-
-  private evalIfStatement(stmt: Statement & {
-    condition: Expression;
-    thenBranch: Statement[];
-    elseIfBranches?: { condition: Expression; body: Statement[] }[];
-    elseBranch?: Statement[];
-  }): GSValue {
-    if (isTruthy(this.evalExpression(stmt.condition))) {
-      return this.evalBlock(stmt.thenBranch);
-    }
-
-    if (stmt.elseIfBranches) {
-      for (const eb of stmt.elseIfBranches) {
-        if (isTruthy(this.evalExpression(eb.condition))) {
-          return this.evalBlock(eb.body);
+      case 'IfStatement': {
+        if (isTruthy(this.evalExpression(statement.condition))) return this.evalStatements(statement.thenBranch);
+        for (const branch of statement.elseIfBranches ?? []) {
+          if (isTruthy(this.evalExpression(branch.condition))) return this.evalStatements(branch.body);
         }
+        if (statement.elseBranch) return this.evalStatements(statement.elseBranch);
+        return null;
+      }
+      case 'WhileStatement': {
+        while (isTruthy(this.evalExpression(statement.condition))) {
+          const result = this.evalStatements(statement.body);
+          if (!result) continue;
+          if (result.kind === 'continue') continue;
+          if (result.kind === 'break') break;
+          return result;
+        }
+        return null;
+      }
+      case 'ForStatement': {
+        const iterable = this.evalExpression(statement.iterable);
+        if (!Array.isArray(iterable)) return null;
+        for (const item of iterable) {
+          this.scope.set(statement.variable, item);
+          const result = this.evalStatements(statement.body);
+          if (!result) continue;
+          if (result.kind === 'continue') continue;
+          if (result.kind === 'break') break;
+          return result;
+        }
+        return null;
       }
     }
-
-    if (stmt.elseBranch) {
-      return this.evalBlock(stmt.elseBranch);
-    }
-
-    return null;
   }
 
-  private evalWhileStatement(stmt: Statement & { condition: Expression; body: Statement[] }): GSValue {
-    while (isTruthy(this.evalExpression(stmt.condition))) {
-      const result = this.evalBlock(stmt.body);
-      if (result && (result as any).type === 'break') return null;
-      if (result && (result as any).type === 'continue') continue;
-      if (result !== null) return result;
-    }
-    return null;
-  }
-
-  private evalForStatement(stmt: Statement & { variable: string; iterable: Expression; body: Statement[] }): GSValue {
-    const iter = this.evalExpression(stmt.iterable);
-    if (!Array.isArray(iter)) return null;
-
-    for (const item of iter) {
-      this.scope.set(stmt.variable, item);
-      const result = this.evalBlock(stmt.body);
-      if (result && (result as any).type === 'break') return null;
-      if (result && (result as any).type === 'continue') continue;
-      if (result !== null) return result;
-    }
-    return null;
-  }
-
-  private evalEmitStatement(stmt: Statement & { fields: { name: string; value: Expression }[] }): GSValue {
-    const algo = this.currentAlgo;
-    if (!algo) return null;
-
+  private emitTraceRow(fields: { name: string; value: GSValue }[]): void {
+    if (!this.currentAlgo) return;
     const row: Record<string, GSValue> = {};
-    for (const field of stmt.fields) {
-      row[field.name] = this.evalExpression(field.value);
+    for (const field of fields) row[field.name] = field.value;
+    if (this.currentAlgo.trace.columns.length === 0) {
+      this.currentAlgo.trace.columns = fields.map((field) => field.name);
     }
-
-    if (algo.trace.columns.length === 0) {
-      algo.trace.columns = stmt.fields.map(f => f.name);
-    }
-    algo.trace.rows.push(row);
-
-    return null;
-  }
-
-  private evalBlock(statements: Statement[]): GSValue {
-    for (const stmt of statements) {
-      const result = this.evalStatement(stmt);
-      if (stmt.type === 'ReturnStatement' || stmt.type === 'BreakStatement' || stmt.type === 'ContinueStatement') {
-        return result;
-      }
-      if (result !== null) return result;
-    }
-    return null;
+    this.currentAlgo.trace.rows.push(row);
   }
 }
