@@ -30,3 +30,11 @@ npm-debug.log*
 
 # Coverage
 coverage/
+
+# temporary folder
+temp/
+
+# Input and output folders (local only)
+input/
+output/
+output-viz/
