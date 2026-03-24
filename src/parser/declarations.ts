@@ -83,6 +83,7 @@ export class DeclarationParser {
       case 'erd': return this.parseErdDeclaration();
       case 'infra': return this.parseInfraDeclaration();
       case 'page': return this.parsePageDeclaration();
+      case 'pseudo': return this.parsePseudoDeclaration();
       case 'render': return this.parseRenderDeclaration();
       default:
         this.error(`Unknown declaration: ${token.value}`);
@@ -442,13 +443,16 @@ export class DeclarationParser {
         }
       }
 
-      elements.push({ type, name: elemName, properties });
+      elements.push({ type, name: elemName, properties, children: [] });
       this.skipNewlines();
     }
+
+    const properties = this.parseBlockProperties();
 
     return {
       type: 'DiagramDeclaration',
       name,
+      properties,
       elements,
       location: { start, end: this.loc() }
     };
@@ -513,12 +517,13 @@ export class DeclarationParser {
       this.skipNewlines();
     }
 
+    const properties = this.parseBlockProperties();
     const elements: Scene3dElement[] = [];
 
     while (this.check('IDENTIFIER') && !['end'].includes(this.peek().value)) {
       const type = this.expect('IDENTIFIER').value;
       const elemName = this.expect('IDENTIFIER').value;
-      elements.push({ type, name: elemName });
+      elements.push({ type, name: elemName, properties: {} });
       this.skipNewlines();
     }
 
@@ -527,6 +532,7 @@ export class DeclarationParser {
     return {
       type: 'Scene3dDeclaration',
       name,
+      properties,
       elements,
       location: { start, end: this.loc() }
     };
@@ -539,9 +545,12 @@ export class DeclarationParser {
     const name = nameToken.type === 'STRING' ? nameToken.value : this.expect('IDENTIFIER').value;
     if (nameToken.type === 'STRING') this.advance();
 
+    const properties = this.parseBlockProperties();
+
     return {
       type: 'ErdDeclaration',
       name,
+      properties,
       tables: [],
       relationships: [],
       location: { start, end: this.loc() }
@@ -556,11 +565,15 @@ export class DeclarationParser {
     const name = nameToken.type === 'STRING' ? nameToken.value : this.expect('IDENTIFIER').value;
     if (nameToken.type === 'STRING') this.advance();
 
+    const properties = this.parseBlockProperties();
+
     return {
       type: 'InfraDeclaration',
       provider,
       name,
+      properties,
       elements: [],
+      connections: [],
       location: { start, end: this.loc() }
     };
   }
@@ -580,6 +593,23 @@ export class DeclarationParser {
       name,
       properties,
       placements: [],
+      location: { start, end: this.loc() }
+    };
+  }
+
+  private parsePseudoDeclaration(): TopLevelNode {
+    const start = this.loc();
+    this.advance();
+    const nameToken = this.peek();
+    const name = nameToken.type === 'STRING' ? nameToken.value : this.expect('IDENTIFIER').value;
+    if (nameToken.type === 'STRING') this.advance();
+
+    this.skipNewlines();
+
+    return {
+      type: 'PseudoDeclaration',
+      name,
+      lines: [],
       location: { start, end: this.loc() }
     };
   }

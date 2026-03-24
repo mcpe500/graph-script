@@ -185,6 +185,7 @@ export interface FlowEdge {
 export interface DiagramDeclaration {
   type: 'DiagramDeclaration';
   name: string;
+  properties: Record<string, Expression>;
   elements: DiagramElement[];
   location: SourceLocation;
 }
@@ -193,6 +194,7 @@ export interface DiagramElement {
   type: string;
   name: string;
   properties: Record<string, Expression>;
+  children?: DiagramElement[];
 }
 
 export interface TableDeclaration {
@@ -214,6 +216,7 @@ export interface Plot3dDeclaration {
 export interface Scene3dDeclaration {
   type: 'Scene3dDeclaration';
   name: string;
+  properties: Record<string, Expression>;
   elements: Scene3dElement[];
   location: SourceLocation;
 }
@@ -221,11 +224,13 @@ export interface Scene3dDeclaration {
 export interface Scene3dElement {
   type: string;
   name: string;
+  properties: Record<string, Expression>;
 }
 
 export interface ErdDeclaration {
   type: 'ErdDeclaration';
   name: string;
+  properties: Record<string, Expression>;
   tables: ErdTable[];
   relationships: ErdRelationship[];
   location: SourceLocation;
@@ -252,13 +257,22 @@ export interface InfraDeclaration {
   type: 'InfraDeclaration';
   provider: string;
   name: string;
+  properties: Record<string, Expression>;
   elements: InfraElement[];
+  connections: InfraConnection[];
   location: SourceLocation;
 }
 
 export interface InfraElement {
   type: string;
   name: string;
+  properties: Record<string, Expression>;
+}
+
+export interface InfraConnection {
+  from: string;
+  to: string;
+  label?: string;
 }
 
 export interface PageDeclaration {
@@ -438,7 +452,7 @@ export interface EmitStatement {
 
 export const TOP_LEVEL_KEYWORDS = [
   'use', 'import', 'const', 'data', 'func', 'theme', 'style', 'sub',
-  'component', 'algo', 'chart', 'flow', 'diagram', 'table', 'plot3d',
+  'component', 'algo', 'pseudo', 'chart', 'flow', 'diagram', 'table', 'plot3d',
   'scene3d', 'erd', 'infra', 'page', 'render'
 ] as const;
 

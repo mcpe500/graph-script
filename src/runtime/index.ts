@@ -68,6 +68,7 @@ export class Evaluator {
       case 'ErdDeclaration':
       case 'InfraDeclaration':
       case 'PageDeclaration':
+      case 'PseudoDeclaration':
         this.scope.set((node as any).name, { ...node });
         break;
       case 'RenderDeclaration':

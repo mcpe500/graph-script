@@ -1,11 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { FlowDeclaration, ChartDeclaration, TableDeclaration, Plot3dDeclaration } from '../ast/types';
+import { FlowDeclaration, ChartDeclaration, TableDeclaration, Plot3dDeclaration, DiagramDeclaration, Scene3dDeclaration, ErdDeclaration, InfraDeclaration, PageDeclaration, PseudoDeclaration } from '../ast/types';
 import { GSValue, Trace } from '../runtime/values';
 import { renderBarChart, renderLineChart, extractChartConfig, extractDataSeries } from './chart';
 import { layoutFlow, renderFlow } from './flow';
 import { buildTableData, renderTable } from './table';
 import { buildPlot3d, renderPlot3d } from './plot3d';
+import { renderDiagram } from './diagram';
+import { renderScene3d } from './scene3d';
+import { renderErd } from './erd';
+import { renderInfra } from './infra';
+import { renderPage } from './page';
+import { renderPseudoBlock } from './pseudo';
 
 export interface RenderOptions {
   outputDir?: string;
@@ -41,6 +47,18 @@ export class Renderer {
           this.renderTable(name, decl as TableDeclaration, values, traces, outputDir);
         } else if (decl.type === 'Plot3dDeclaration') {
           this.renderPlot3d(name, decl as Plot3dDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'DiagramDeclaration') {
+          this.renderDiagram(name, decl as DiagramDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'Scene3dDeclaration') {
+          this.renderScene3d(name, decl as Scene3dDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'ErdDeclaration') {
+          this.renderErd(name, decl as ErdDeclaration, outputDir);
+        } else if (decl.type === 'InfraDeclaration') {
+          this.renderInfra(name, decl as InfraDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'PageDeclaration') {
+          this.renderPage(name, decl as PageDeclaration, values, traces, outputDir);
+        } else if (decl.type === 'PseudoDeclaration') {
+          this.renderPseudo(name, decl as PseudoDeclaration, outputDir);
         }
       }
     }
@@ -175,5 +193,110 @@ export class Renderer {
     const outputPath = path.join(outputDir, `${name}.svg`);
     fs.writeFileSync(outputPath, svg, 'utf-8');
     console.log(`Rendered plot3d: ${outputPath}`);
+  }
+
+  private renderDiagram(
+    name: string,
+    diagram: DiagramDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const renderEmbed = (target: string): string | null => {
+      const decl = values[target] as DiagramDeclaration | undefined;
+      if (decl?.type === 'DiagramDeclaration') {
+        return renderDiagram(decl, values, traces, renderEmbed);
+      }
+      return null;
+    };
+    const svg = renderDiagram(diagram, values, traces, renderEmbed);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered diagram: ${outputPath}`);
+  }
+
+  private renderScene3d(
+    name: string,
+    scene3d: Scene3dDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const svg = renderScene3d(scene3d, values, traces);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered scene3d: ${outputPath}`);
+  }
+
+  private renderErd(
+    name: string,
+    erd: ErdDeclaration,
+    outputDir: string
+  ): void {
+    const svg = renderErd(erd);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered erd: ${outputPath}`);
+  }
+
+  private renderInfra(
+    name: string,
+    infra: InfraDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const svg = renderInfra(infra, values, traces);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered infra: ${outputPath}`);
+  }
+
+  private renderPage(
+    name: string,
+    page: PageDeclaration,
+    values: Record<string, GSValue>,
+    traces: Map<string, Trace>,
+    outputDir: string
+  ): void {
+    const renderEmbed = (target: string): string | null => {
+      const decl = values[target] as any;
+      if (!decl) return null;
+      switch (decl.type) {
+        case 'ChartDeclaration':
+          return '';
+        case 'FlowDeclaration':
+          return '';
+        case 'TableDeclaration':
+          return '';
+        case 'DiagramDeclaration':
+          return renderDiagram(decl as DiagramDeclaration, values, traces, renderEmbed);
+        case 'Scene3dDeclaration':
+          return renderScene3d(decl as Scene3dDeclaration, values, traces);
+        case 'ErdDeclaration':
+          return renderErd(decl as ErdDeclaration);
+        case 'InfraDeclaration':
+          return renderInfra(decl as InfraDeclaration, values, traces);
+        case 'PseudoDeclaration':
+          return renderPseudoBlock(decl as PseudoDeclaration);
+        default:
+          return null;
+      }
+    };
+    const svg = renderPage(page, values, traces, renderEmbed);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered page: ${outputPath}`);
+  }
+
+  private renderPseudo(
+    name: string,
+    pseudo: PseudoDeclaration,
+    outputDir: string
+  ): void {
+    const svg = renderPseudoBlock(pseudo);
+    const outputPath = path.join(outputDir, `${name}.svg`);
+    fs.writeFileSync(outputPath, svg, 'utf-8');
+    console.log(`Rendered pseudo: ${outputPath}`);
   }
 }
