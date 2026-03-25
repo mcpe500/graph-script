@@ -16,6 +16,9 @@ interface CliOptions {
   format?: 'svg' | 'png' | 'jpg';
   scale?: number;
   quality?: number;
+  fontScale?: number;
+  imageScale?: number;
+  fillImages?: boolean;
 }
 
 function parseArgs(args: string[]): CliOptions | null {
@@ -29,6 +32,9 @@ function parseArgs(args: string[]): CliOptions | null {
   let format: 'svg' | 'png' | 'jpg' | undefined;
   let scale: number | undefined;
   let quality: number | undefined;
+  let fontScale: number | undefined;
+  let imageScale: number | undefined;
+  let fillImages = false;
 
   for (let i = 0; i < rest.length; i += 1) {
     if (rest[i] === '--output' || rest[i] === '-o') {
@@ -56,10 +62,24 @@ function parseArgs(args: string[]): CliOptions | null {
         quality = q;
       }
       i += 1;
+    } else if (rest[i] === '--font-scale') {
+      const fs = parseFloat(rest[i + 1]);
+      if (!isNaN(fs) && fs > 0) {
+        fontScale = fs;
+      }
+      i += 1;
+    } else if (rest[i] === '--image-scale') {
+      const is = parseFloat(rest[i + 1]);
+      if (!isNaN(is) && is > 0) {
+        imageScale = is;
+      }
+      i += 1;
+    } else if (rest[i] === '--fill-images') {
+      fillImages = true;
     }
   }
 
-  return { command: command as CliOptions['command'], file, outputDir, skipValidation, validationReport, format, scale, quality };
+  return { command: command as CliOptions['command'], file, outputDir, skipValidation, validationReport, format, scale, quality, fontScale, imageScale, fillImages };
 }
 
 function printUsage(): void {
@@ -81,6 +101,9 @@ Options:
   --format <svg|png|jpg>  Output format (default: svg)
   --scale <number>         Scale factor for PNG/JPG (default: 1)
   --quality <1-100>        JPEG quality (default: 90)
+  --font-scale <number>    Font/formula scale factor (default: 1)
+  --image-scale <number>   Image scale factor (default: 1)
+  --fill-images            Auto-fill images to fill available space
 
 Examples:
   graphscript check demo.gs
@@ -89,6 +112,8 @@ Examples:
   graphscript render demo.gs --format png
   graphscript render demo.gs --format jpg --quality 80
   graphscript render demo.gs --format png --scale 2
+  graphscript render demo.gs --font-scale 2 --fill-images
+  graphscript render demo.gs --font-scale 2.5 --image-scale 1.5
   graphscript render demo.gs --validation-report
   graphscript render demo.gs --skip-validation
 `);
@@ -203,6 +228,9 @@ async function main(args: string[]): Promise<void> {
       format: options.format,
       scale: options.scale,
       quality: options.quality,
+      fontScale: options.fontScale,
+      imageScale: options.imageScale,
+      fillImages: options.fillImages,
     });
     console.log('\nRendering...');
     await renderer.render(values, evaluator.getTraces(), {
@@ -213,6 +241,9 @@ async function main(args: string[]): Promise<void> {
       format: options.format,
       scale: options.scale,
       quality: options.quality,
+      fontScale: options.fontScale,
+      imageScale: options.imageScale,
+      fillImages: options.fillImages,
     });
     console.log('✓ Render: Complete');
   } catch (error: any) {

@@ -31,6 +31,9 @@ export interface RenderOptions {
   format?: 'svg' | 'png' | 'jpg';
   scale?: number;
   quality?: number;
+  fontScale?: number;
+  imageScale?: number;
+  fillImages?: boolean;
   baseDir?: string;
   skipValidation?: boolean;
   validationReport?: boolean;
@@ -47,6 +50,9 @@ export class Renderer {
     const format = options.format ?? this.options.format ?? 'svg';
     const scale = options.scale ?? this.options.scale ?? 1;
     const quality = options.quality ?? this.options.quality ?? 90;
+    const fontScale = options.fontScale ?? this.options.fontScale ?? 1;
+    const imageScale = options.imageScale ?? this.options.imageScale ?? 1;
+    const fillImages = options.fillImages ?? this.options.fillImages ?? false;
 
     fs.mkdirSync(outputDir, { recursive: true });
 
@@ -72,13 +78,13 @@ export class Renderer {
         }
       }
 
-      const svg = await this.renderDeclaration(name, declToRender, values, traces, baseDir);
+      const svg = await this.renderDeclaration(name, declToRender, values, traces, baseDir, { fontScale, imageScale, fillImages });
       if (!svg) continue;
       await this.writeOutput(declToRender.name || name, svg, outputDir, declToRender.type.replace('Declaration', '').toLowerCase(), format, scale, quality);
     }
   }
 
-  async renderDeclaration(name: string, decl: any, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string = this.options.baseDir || process.cwd()): Promise<string | null> {
+  async renderDeclaration(name: string, decl: any, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string = this.options.baseDir || process.cwd(), renderOptions: { fontScale?: number; imageScale?: number; fillImages?: boolean } = {}): Promise<string | null> {
     if (!decl || typeof decl !== 'object') return null;
     switch (decl.type) {
       case 'ChartDeclaration': {
@@ -101,8 +107,9 @@ export class Renderer {
           decl as DiagramDeclaration,
           values,
           traces,
-          async (target) => this.findAndRenderTarget(target, values, traces, baseDir),
+          async (target) => this.findAndRenderTarget(target, values, traces, baseDir, renderOptions),
           baseDir,
+          renderOptions,
         );
       case 'Scene3dDeclaration':
         return renderScene3d(decl as Scene3dDeclaration, values, traces);
@@ -111,21 +118,21 @@ export class Renderer {
       case 'InfraDeclaration':
         return renderInfra(decl as InfraDeclaration, values, traces);
       case 'PageDeclaration':
-        return await renderPage(decl as PageDeclaration, values, traces, async (target) => this.findAndRenderTarget(target, values, traces, baseDir));
+        return await renderPage(decl as PageDeclaration, values, traces, async (target) => this.findAndRenderTarget(target, values, traces, baseDir, renderOptions), renderOptions);
       default:
         return null;
     }
   }
 
-  private async findAndRenderTarget(target: string, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string): Promise<string | null> {
+  private async findAndRenderTarget(target: string, values: Record<string, GSValue>, traces: Map<string, Trace>, baseDir: string, renderOptions: { fontScale?: number; imageScale?: number; fillImages?: boolean } = {}): Promise<string | null> {
     const direct = values[target];
     if (direct && typeof direct === 'object') {
-      return this.renderDeclaration(target, direct, values, traces, baseDir);
+      return this.renderDeclaration(target, direct, values, traces, baseDir, renderOptions);
     }
 
     for (const [name, value] of Object.entries(values)) {
       if (value && typeof value === 'object' && (value as any).name === target) {
-        return this.renderDeclaration(name, value, values, traces, baseDir);
+        return this.renderDeclaration(name, value, values, traces, baseDir, renderOptions);
       }
     }
     return null;

@@ -58,6 +58,9 @@ export async function compileSemanticDiagram(
   }
 
   const fontFamily = options.fontFamily ?? DEFAULT_FONT_FAMILY;
+  const imageScale = options.imageScale ?? 1;
+  const fillImages = options.fillImages ?? false;
+  const fontScale = options.fontScale ?? 1;
   const semantic = elements.filter((element) => SEMANTIC_TYPES.has(element.type));
   const plain = elements.filter((element) => !SEMANTIC_TYPES.has(element.type));
 
@@ -135,13 +138,13 @@ export async function compileSemanticDiagram(
     lane.frame.h = Math.max(0, lane.frame.h - laneTop);
   }
 
-  let cards = await layoutCards(cardElements, lanes, values, traces, fontFamily);
+  let cards = await layoutCards(cardElements, lanes, values, traces, fontFamily, imageScale, fillImages, fontScale);
   lanes = compactLaneFrames(lanes, cards, contentX, contentWidth, separator ? 84 : 52);
   for (const lane of lanes) {
     lane.frame.y = laneTop;
     lane.frame.h = Math.max(0, height - laneTop);
   }
-  cards = await layoutCards(cardElements, lanes, values, traces, fontFamily);
+  cards = await layoutCards(cardElements, lanes, values, traces, fontFamily, imageScale, fillImages, fontScale);
   let contentBottom = Math.max(laneTop, ...cards.map((card) => card.y + card.height));
   const packedLeft = lanes.length ? Math.min(...lanes.map((lane) => lane.frame.x)) : contentX;
   const packedRight = lanes.length ? Math.max(...lanes.map((lane) => lane.frame.x + lane.frame.w)) : contentX + contentWidth;
@@ -286,6 +289,9 @@ async function layoutCards(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<CardLayout[]> {
   const cards: CardLayout[] = [];
 
@@ -327,13 +333,13 @@ async function layoutCards(
       const minWidth = getNumber(card, values, traces, 'min_w', 0);
       const boundedMinWidth = minWidth > 0 ? Math.min(slotWidth, minWidth) : 0;
       const initialWidth = Math.max(boundedMinWidth, Math.min(slotWidth, preferredWidth));
-      let measurement = await measureCard(card, initialWidth, values, traces, fontFamily);
+      let measurement = await measureCard(card, initialWidth, values, traces, fontFamily, imageScale, fillImages, fontScale);
       let width = initialWidth;
       if (!hasExplicitWidth) {
         const compactWidth = clamp(measurement.width, boundedMinWidth || 0, slotWidth);
         if (Math.abs(compactWidth - width) > 10) {
           width = compactWidth;
-          measurement = await measureCard(card, width, values, traces, fontFamily);
+          measurement = await measureCard(card, width, values, traces, fontFamily, imageScale, fillImages, fontScale);
         } else {
           width = compactWidth;
         }
@@ -410,13 +416,16 @@ async function measureCard(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<CardMeasurement> {
   const padding = Math.max(20, getNumber(card, values, traces, 'padding', 24));
   const gap = Math.max(CHILD_GAP_MIN, getNumber(card, values, traces, 'gap', 18));
   const label = getString(card, values, traces, 'label', card.name);
   const subtitle = getString(card, values, traces, 'subtitle', '');
-  const titleSize = Math.max(CARD_TITLE_MIN, getNumber(card, values, traces, 'size', CARD_TITLE_MIN));
-  const subtitleSize = Math.max(BODY_TEXT_MIN, getNumber(card, values, traces, 'subtitle_size', BODY_TEXT_MIN));
+  const titleSize = Math.max(CARD_TITLE_MIN, getNumber(card, values, traces, 'size', CARD_TITLE_MIN)) * fontScale;
+  const subtitleSize = Math.max(BODY_TEXT_MIN, getNumber(card, values, traces, 'subtitle_size', BODY_TEXT_MIN)) * fontScale;
   const latexMode = readLatexMode(resolveValue(card.properties.latex, values, traces), 'auto');
 
   const titleBlock = label
@@ -451,12 +460,12 @@ async function measureCard(
   const titleBottomGap = titleBlock.height ? 12 : 0;
   const subtitleGap = subtitleBlock.height ? 8 : 0;
   const headerHeight = titleBlock.height || subtitleBlock.height
-    ? Math.max(58, headerTop + titleBlock.height + (subtitleBlock.height ? titleBottomGap + subtitleBlock.height + subtitleGap : 0) + 12)
+    ? Math.max(58, headerTop + titleBlock.height + (subtitleBlock.height ? titleBottomGap + titleBlock.height + subtitleGap : 0) + 12)
     : 28;
 
   const innerWidth = Math.max(140, width - padding * 2);
   const containerOptions = readContainerOptions(card, values, traces, 'stack', gap);
-  const content = await layoutContainerChildren(card.children ?? [], innerWidth, containerOptions, values, traces, fontFamily);
+  const content = await layoutContainerChildren(card.children ?? [], innerWidth, containerOptions, values, traces, fontFamily, imageScale, fillImages, fontScale);
   const bodyTop = headerHeight + padding;
   const fallbackHeight = headerHeight + padding * 2 + (content.elements.length ? content.height : 52);
   const minHeight = getNumber(card, values, traces, 'min_h', 0);
@@ -519,11 +528,14 @@ async function layoutContainerChildren(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<ChildLayout> {
   if (!children.length) return { width, height: 0, elements: [] };
-  if (options.layout === 'row') return layoutRowChildren(children, width, options, values, traces, fontFamily);
-  if (options.layout === 'columns') return layoutColumnChildren(children, width, options, values, traces, fontFamily);
-  return layoutStackChildren(children, width, options, values, traces, fontFamily);
+  if (options.layout === 'row') return layoutRowChildren(children, width, options, values, traces, fontFamily, imageScale, fillImages, fontScale);
+  if (options.layout === 'columns') return layoutColumnChildren(children, width, options, values, traces, fontFamily, imageScale, fillImages, fontScale);
+  return layoutStackChildren(children, width, options, values, traces, fontFamily, imageScale, fillImages, fontScale);
 }
 
 async function layoutStackChildren(
@@ -533,12 +545,15 @@ async function layoutStackChildren(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<ChildLayout> {
   let cursorY = 0;
   let usedWidth = 0;
   const elements: DiagramElement[] = [];
   for (const child of children) {
-    const measured = await measureChild(child, width, values, traces, fontFamily);
+    const measured = await measureChild(child, width, values, traces, fontFamily, imageScale, fillImages, fontScale);
     const x = resolveAlignedX(options.align, width, measured.width);
     usedWidth = Math.max(usedWidth, measured.width);
     elements.push(...offsetChildren(measured.elements, x, cursorY));
@@ -555,10 +570,13 @@ async function layoutRowChildren(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<ChildLayout> {
   const count = Math.max(children.length, 1);
   const naturalMeasured = [];
-  for (const child of children) naturalMeasured.push(await measureChild(child, width, values, traces, fontFamily));
+  for (const child of children) naturalMeasured.push(await measureChild(child, width, values, traces, fontFamily, imageScale, fillImages, fontScale));
   const naturalTotalWidth = naturalMeasured.reduce((sum, entry) => sum + entry.width, 0) + options.gap * Math.max(0, naturalMeasured.length - 1);
 
   let measured = naturalMeasured;
@@ -566,10 +584,10 @@ async function layoutRowChildren(
   if (naturalTotalWidth > width + 8) {
     const budget = Math.max(84, (width - options.gap * (count - 1)) / count);
     const compactMeasured = [];
-    for (const child of children) compactMeasured.push(await measureChild(child, budget, values, traces, fontFamily));
+    for (const child of children) compactMeasured.push(await measureChild(child, budget, values, traces, fontFamily, imageScale, fillImages, fontScale));
     const compactTotalWidth = compactMeasured.reduce((sum, entry) => sum + entry.width, 0) + options.gap * Math.max(0, compactMeasured.length - 1);
     if (compactTotalWidth > width + 8 && children.length > 1) {
-      return layoutStackChildren(children, width, { ...options, align: options.align === 'stretch' ? 'stretch' : 'center' }, values, traces, fontFamily);
+      return layoutStackChildren(children, width, { ...options, align: options.align === 'stretch' ? 'stretch' : 'center' }, values, traces, fontFamily, imageScale, fillImages, fontScale);
     }
     measured = compactMeasured;
     totalWidth = compactTotalWidth;
@@ -593,10 +611,13 @@ async function layoutColumnChildren(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<ChildLayout> {
   const columns = Math.max(1, options.columns);
   const cellWidth = (width - options.gap * (columns - 1)) / columns;
-  const measured = await Promise.all(children.map((child) => measureChild(child, cellWidth, values, traces, fontFamily)));
+  const measured = await Promise.all(children.map((child) => measureChild(child, cellWidth, values, traces, fontFamily, imageScale, fillImages, fontScale)));
   const rowHeights = new Map<number, number>();
   measured.forEach((entry, index) => {
     const row = Math.floor(index / columns);
@@ -640,10 +661,14 @@ async function measureChild(
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   fontFamily: string,
+  imageScale: number = 1,
+  fillImages: boolean = false,
+  fontScale: number = 1,
 ): Promise<ChildLayout> {
   switch (child.type) {
     case 'text': {
-      const fontSize = Math.max(BODY_TEXT_MIN, getNumber(child, values, traces, 'size', BODY_TEXT_MIN));
+      const baseFontSize = Math.max(BODY_TEXT_MIN, getNumber(child, values, traces, 'size', BODY_TEXT_MIN));
+      const fontSize = baseFontSize * fontScale;
       const value = getString(child, values, traces, 'value', child.name);
       const weight = getString(child, values, traces, 'weight', '600');
       const align = getString(child, values, traces, 'align', 'center');
@@ -683,7 +708,8 @@ async function measureChild(
       };
     }
     case 'formula': {
-      const fontSize = Math.max(FORMULA_TEXT_MIN, getNumber(child, values, traces, 'size', FORMULA_TEXT_MIN));
+      const baseFontSize = Math.max(FORMULA_TEXT_MIN, getNumber(child, values, traces, 'size', FORMULA_TEXT_MIN));
+      const fontSize = baseFontSize * fontScale;
       const value = getString(child, values, traces, 'value', child.name);
       const metrics = await measureDisplayFormula(value, { fontSize });
       const constrainedWidth = Math.min(Math.max(metrics.width, 48), maxWidth);
@@ -707,19 +733,24 @@ async function measureChild(
       };
     }
     case 'image': {
-      const naturalWidth = Math.max(1, getNumber(child, values, traces, 'w', Math.min(maxWidth, 180)));
-      const naturalHeight = Math.max(1, getNumber(child, values, traces, 'h', 82));
+      let naturalWidth = Math.max(1, getNumber(child, values, traces, 'w', Math.min(maxWidth, 180)));
+      let naturalHeight = Math.max(1, getNumber(child, values, traces, 'h', 82));
       const minWidth = Math.min(maxWidth, Math.max(MIN_ASSET_WIDTH, getNumber(child, values, traces, 'min_w', MIN_ASSET_WIDTH)));
       const minHeight = Math.max(MIN_ASSET_HEIGHT, getNumber(child, values, traces, 'min_h', MIN_ASSET_HEIGHT));
 
-      let width = clamp(naturalWidth, Math.min(minWidth, maxWidth), maxWidth);
-      let height = naturalHeight * (width / naturalWidth);
-      if (height < minHeight) {
-        const scaledWidth = naturalWidth * (minHeight / naturalHeight);
-        if (scaledWidth <= maxWidth) {
-          width = Math.max(width, scaledWidth);
-          height = minHeight;
-        }
+      if (fillImages) {
+        naturalWidth = Math.min(maxWidth, naturalWidth * 1.5);
+        naturalHeight = Math.min(maxWidth * (naturalHeight / naturalWidth), naturalHeight * 1.5);
+      }
+
+      const desiredWidth = naturalWidth * imageScale;
+      const desiredHeight = naturalHeight * imageScale;
+
+      let width = clamp(desiredWidth, minWidth, maxWidth);
+      let height = desiredHeight;
+
+      if (height < minHeight * imageScale) {
+        height = minHeight * imageScale;
       }
 
       return {
@@ -798,11 +829,11 @@ async function measureChild(
       const hasExplicitWidth = child.properties.w != null;
       let groupWidth = Math.min(maxWidth, Math.max(80, getNumber(child, values, traces, 'w', maxWidth)));
       let innerWidth = Math.max(60, groupWidth - padding * 2);
-      let content = await layoutContainerChildren(child.children ?? [], innerWidth, layout, values, traces, fontFamily);
+      let content = await layoutContainerChildren(child.children ?? [], innerWidth, layout, values, traces, fontFamily, imageScale, fillImages, fontScale);
       if (!hasExplicitWidth) {
         groupWidth = clamp(content.width + padding * 2, 80, maxWidth);
         innerWidth = Math.max(60, groupWidth - padding * 2);
-        content = await layoutContainerChildren(child.children ?? [], innerWidth, layout, values, traces, fontFamily);
+        content = await layoutContainerChildren(child.children ?? [], innerWidth, layout, values, traces, fontFamily, imageScale, fillImages, fontScale);
       }
       const fill = getString(child, values, traces, 'fill', 'none');
       const stroke = getString(child, values, traces, 'stroke', 'none');

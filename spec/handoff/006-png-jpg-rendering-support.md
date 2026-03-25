@@ -28,6 +28,9 @@ Fitur export/render ke format PNG dan JPG telah berhasil ditambahkan ke GraphScr
 --format <svg|png|jpg>   Output format (default: svg)
 --scale <number>         Scale factor untuk resolusi (default: 1)
 --quality <1-100>        JPEG quality (default: 90)
+--font-scale <number>   Font/formula scale factor (default: 1)
+--image-scale <number>  Image scale factor (default: 1)
+--fill-images            Auto-fill images to fill available space
 ```
 
 ### 2. Contoh Penggunaan
@@ -41,6 +44,12 @@ graphscript render input.gs -o output --format jpg --quality 80
 
 # Render ke PNG dengan skala 2x (high resolution)
 graphscript render input.gs -o output --format png --scale 2
+
+# Font 2x, image auto-fill (untuk buku TA)
+graphscript render input.gs -o output --font-scale 2 --fill-images
+
+# Font 2.5x, image 1.5x  
+graphscript render input.gs -o output --font-scale 2.5 --image-scale 1.5
 
 # Default (SVG)
 graphscript render input.gs -o output
@@ -59,6 +68,9 @@ Menggunakan `sharp` v0.33.2 untuk konversi SVG ke PNG/JPG. Sharp dipilih karena:
 - [package.json](/D:/Ivan/TA/graph-script/package.json) - Added sharp dependency
 - [src/cli.ts](/D:/Ivan/TA/graph-script/src/cli.ts) - Added CLI options parsing
 - [src/renderer/index.ts](/D:/Ivan/TA/graph-script/src/renderer/index.ts) - Added format conversion logic
+- [src/renderer/diagram-semantic/layout.ts](/D:/Ivan/TA/graph-script/src/renderer/diagram-semantic/layout.ts) - Added font-scale, image-scale, fill-images logic
+- [src/renderer/diagram-semantic/types.ts](/D:/Ivan/TA/graph-script/src/renderer/diagram-semantic/types.ts) - Added new options to SemanticCompileOptions
+- [src/renderer/diagram/render.ts](/D:/Ivan/TA/graph-script/src/renderer/diagram/render.ts) - Pass renderOptions to compileSemanticDiagram
 
 ## Implementation Details
 
@@ -82,6 +94,14 @@ try {
   // fallback to SVG
 }
 ```
+
+### Font Scale, Image Scale, dan Fill Images
+
+1. **fontScale**: Menerapkan faktor skala pada ukuran font untuk text dan formula. Contoh: fontScale=2 membuat font 14px menjadi 28px.
+
+2. **imageScale**: Menerapkan faktor skala pada dimensi gambar dalam diagram. Contoh: imageScale=1.5 membuat gambar menjadi 1.5x lebih besar.
+
+3. **fillImages**: Jika true, gambar akan diperbesar untuk mengisi space yang tersedia dalam container (dengan batasan max). Berguna untuk diagram dengan empty space yang tidak terpakai.
 
 ## Testing Results
 
@@ -108,9 +128,13 @@ node dist/cli.js render examples/hello-chart.gs -o output_test --format png --sc
 node dist/cli.js render examples/hello-chart.gs -o output_test
 ✓ Rendered chart: output_test\Squares.svg
 
-# Complex diagram
-node dist/cli.js render temp/fig-4-16-vqe-measurement.gs -o output_vqe_test --format png
-✓ Rendered diagram: output_vqe_test\Gambar 4.16 - Pengukuran Hamiltonian VQE.png
+# Complex diagram with font-scale, image-scale, fill-images
+node dist/cli.js render temp/fig-4-16-vqe-measurement.gs -o output_vqe_test --format png --font-scale 2 --image-scale 1.5 --fill-images
+✓ Rendered diagram: output_vqe_test\Gambar 4.16 - Pengukuran Hamiltonian VQE.png (171KB)
+
+# Complex diagram with scale 2x
+node dist/cli.js render temp/fig-4-16-vqe-measurement.gs -o output_vqe_scale --format png --scale 2
+✓ Rendered diagram: output_vqe_scale\Gambar 4.16 - Pengukuran Hamiltonian VQE.png (402KB)
 ```
 
 ### Output File Sizes (hello-chart.gs)
@@ -124,6 +148,9 @@ node dist/cli.js render temp/fig-4-16-vqe-measurement.gs -o output_vqe_test --fo
 - [x] `--format jpg` menghasilkan file .jpg valid
 - [x] `--scale` berfungsi dengan benar (tested with scale=2)
 - [x] `--quality` berfungsi untuk JPG (tested with quality=80)
+- [x] `--font-scale` berfungsi untuk memperbesar font (tested with font-scale=2)
+- [x] `--image-scale` berfungsi untuk memperbesar gambar (tested with image-scale=1.5)
+- [x] `--fill-images` berfungsi untuk mengisi space kosong dengan gambar
 - [x] Default behavior tidak berubah (tetap SVG)
 - [x] Build berhasil tanpa error
 - [x] Complex diagram render works

@@ -9,7 +9,7 @@ export interface RenderEmbed {
   (target: string): Promise<string | null>;
 }
 
-export async function renderDiagram(decl: DiagramDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string): Promise<string> {
+export async function renderDiagram(decl: DiagramDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, renderOptions: { fontScale?: number; imageScale?: number; fillImages?: boolean } = {}): Promise<string> {
   const width = readNumber(resolveValue(decl.properties.width, values, traces), 1280);
   const requestedHeight = readNumber(resolveValue(decl.properties.height, values, traces), 720);
   const background = readString(resolveValue(decl.properties.background, values, traces), '#f8fafc');
@@ -17,7 +17,12 @@ export async function renderDiagram(decl: DiagramDeclaration, values: Record<str
   const subtitle = readString(resolveValue(decl.properties.subtitle, values, traces), '');
   const fontFamily = readString(resolveValue(decl.properties.font_family, values, traces), DEFAULT_FONT_FAMILY);
   const fixedCanvas = readBoolean(resolveValue(decl.properties.fixed_canvas, values, traces), false);
-  const compiled = await compileSemanticDiagram(decl.elements, values, traces, width, requestedHeight, { fontFamily });
+  const compiled = await compileSemanticDiagram(decl.elements, values, traces, width, requestedHeight, { 
+    fontFamily,
+    fontScale: renderOptions.fontScale,
+    imageScale: renderOptions.imageScale,
+    fillImages: renderOptions.fillImages,
+  });
   const finalWidth = compiled.hasSemantic && !fixedCanvas ? Math.max(640, compiled.minWidth) : width;
   const finalHeight = compiled.hasSemantic && !fixedCanvas
     ? Math.max(320, compiled.minHeight)

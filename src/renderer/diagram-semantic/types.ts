@@ -21,6 +21,9 @@ export const MIN_ASSET_HEIGHT = 48;
 
 export interface SemanticCompileOptions {
   fontFamily?: string;
+  fontScale?: number;
+  imageScale?: number;
+  fillImages?: boolean;
 }
 
 export interface SemanticCompileResult {

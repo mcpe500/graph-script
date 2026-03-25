@@ -6,7 +6,7 @@ interface RenderEmbed {
   (target: string): Promise<string | null>;
 }
 
-export async function renderPage(decl: PageDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed): Promise<string> {
+export async function renderPage(decl: PageDeclaration, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, renderOptions: { fontScale?: number; imageScale?: number; fillImages?: boolean } = {}): Promise<string> {
   const width = readNumber(resolveValue(decl.properties.width, values, traces), 1440);
   const height = readNumber(resolveValue(decl.properties.height, values, traces), 900);
   const columns = Math.max(1, readNumber(resolveValue(decl.properties.columns, values, traces), 2));
