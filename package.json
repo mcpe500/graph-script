@@ -13,7 +13,8 @@
     "check": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "start": "node dist/cli.js",
-    "dev": "ts-node src/cli.ts"
+    "dev": "ts-node src/cli.ts",
+    "smoke:semantic-readability": "bun run scripts/semantic-readability-smoke.ts"
   },
   "keywords": [
     "graphscript",

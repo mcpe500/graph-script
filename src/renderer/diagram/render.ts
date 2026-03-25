@@ -2,7 +2,7 @@ import { DiagramDeclaration, DiagramElement } from '../../ast/types';
 import { GSValue, Trace } from '../../runtime/values';
 import { asStringArray, escapeXml, extractSvgDocument, fitIntoBox, readBoolean, readNumber, readString, resolveValue, round, svgDocument } from '../common';
 import { compileSemanticDiagram } from '../diagram-semantic';
-import { readLatexMode, renderDisplayFormula, renderRichTextBlock } from '../latex';
+import { DEFAULT_FONT_FAMILY, readLatexMode, renderDisplayFormula, renderRichTextBlock } from '../latex';
 import { loadImageHref, sanitizeId } from './image';
 
 export interface RenderEmbed {
@@ -15,8 +15,9 @@ export async function renderDiagram(decl: DiagramDeclaration, values: Record<str
   const background = readString(resolveValue(decl.properties.background, values, traces), '#f8fafc');
   const title = readString(resolveValue(decl.properties.title, values, traces), decl.name);
   const subtitle = readString(resolveValue(decl.properties.subtitle, values, traces), '');
+  const fontFamily = readString(resolveValue(decl.properties.font_family, values, traces), DEFAULT_FONT_FAMILY);
   const fixedCanvas = readBoolean(resolveValue(decl.properties.fixed_canvas, values, traces), false);
-  const compiled = await compileSemanticDiagram(decl.elements, values, traces, width, requestedHeight);
+  const compiled = await compileSemanticDiagram(decl.elements, values, traces, width, requestedHeight, { fontFamily });
   const finalWidth = compiled.hasSemantic && !fixedCanvas ? Math.max(640, compiled.minWidth) : width;
   const finalHeight = compiled.hasSemantic && !fixedCanvas
     ? Math.max(320, compiled.minHeight)
@@ -34,6 +35,7 @@ export async function renderDiagram(decl: DiagramDeclaration, values: Record<str
       anchor: 'middle',
       maxLines: 2,
       latex: 'auto',
+      fontFamily,
     });
     body += renderedTitle.svg;
   }
@@ -48,19 +50,20 @@ export async function renderDiagram(decl: DiagramDeclaration, values: Record<str
       anchor: 'middle',
       maxLines: 3,
       latex: 'auto',
+      fontFamily,
     });
     body += renderedSubtitle.svg;
   }
-  body += await renderElements(compiled.elements, values, traces, renderEmbed, assetBaseDir, 0, 0);
+  body += await renderElements(compiled.elements, values, traces, renderEmbed, assetBaseDir, fontFamily, 0, 0);
   return svgDocument(finalWidth, finalHeight, body, background);
 }
 
-async function renderElements(elements: DiagramElement[], values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, offsetX: number, offsetY: number): Promise<string> {
-  const rendered = await Promise.all(elements.map((element) => renderElement(element, values, traces, renderEmbed, assetBaseDir, offsetX, offsetY)));
+async function renderElements(elements: DiagramElement[], values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, defaultFontFamily: string, offsetX: number, offsetY: number): Promise<string> {
+  const rendered = await Promise.all(elements.map((element) => renderElement(element, values, traces, renderEmbed, assetBaseDir, defaultFontFamily, offsetX, offsetY)));
   return rendered.join('');
 }
 
-async function renderElement(element: DiagramElement, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, offsetX: number, offsetY: number): Promise<string> {
+async function renderElement(element: DiagramElement, values: Record<string, GSValue>, traces: Map<string, Trace>, renderEmbed: RenderEmbed, assetBaseDir: string, defaultFontFamily: string, offsetX: number, offsetY: number): Promise<string> {
   const x = offsetX + readNumber(resolveValue(element.properties.x, values, traces), 0);
   const y = offsetY + readNumber(resolveValue(element.properties.y, values, traces), 0);
   const w = readNumber(resolveValue(element.properties.w, values, traces), 200);
@@ -83,6 +86,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
   const gridCols = Math.max(1, readNumber(resolveValue(element.properties.cols, values, traces), 4));
   const shadow = readBoolean(resolveValue(element.properties.shadow, values, traces), ['panel', 'box', 'callout', 'badge'].includes(element.type));
   const latexMode = readLatexMode(resolveValue(element.properties.latex, values, traces), 'auto');
+  const fontFamily = readString(resolveValue(element.properties.font_family, values, traces), defaultFontFamily);
   const dashAttr = dash ? ` stroke-dasharray="${escapeXml(dash)}"` : '';
   const fillOpacityAttr = fillOpacity < 1 ? ` fill-opacity="${round(fillOpacity, 3)}"` : '';
   const strokeOpacityAttr = strokeOpacity < 1 ? ` stroke-opacity="${round(strokeOpacity, 3)}"` : '';
@@ -105,6 +109,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
             anchor: 'middle',
             maxLines: 3,
             latex: latexMode,
+            fontFamily,
           })
         : { svg: '', height: 0, lines: 0 };
       svg += titleBlock.svg;
@@ -119,10 +124,11 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
             anchor: 'middle',
             maxLines: 4,
             latex: latexMode,
+            fontFamily,
           })
         : { svg: '', height: 0, lines: 0 };
       svg += subtitleBlock.svg;
-      if (element.children?.length) svg += await renderElements(element.children, values, traces, renderEmbed, assetBaseDir, x, y);
+      if (element.children?.length) svg += await renderElements(element.children, values, traces, renderEmbed, assetBaseDir, fontFamily, x, y);
       break;
     }
     case 'grid': {
@@ -162,6 +168,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
         anchor: anchor as 'start' | 'middle' | 'end',
         maxLines: Math.max(1, Math.floor(h / Math.max(textSize + 4, 1))) || 6,
         latex: latexMode,
+        fontFamily,
       });
       svg += block.svg;
       break;
@@ -191,6 +198,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
           anchor: 'middle',
           maxLines: 3,
           latex: latexMode,
+          fontFamily,
         });
         svg += block.svg;
       }
@@ -211,6 +219,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
           anchor: 'middle',
           maxLines: 3,
           latex: latexMode,
+          fontFamily,
         });
         svg += block.svg;
       }
@@ -230,6 +239,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
             anchor: 'middle',
             maxLines: 5,
             latex: latexMode,
+            fontFamily,
           })
         : { svg: '', height: 0, lines: 0 };
       svg += labelBlock.svg;
@@ -244,6 +254,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
           anchor: 'middle',
           maxLines: 2,
           latex: latexMode,
+          fontFamily,
         });
         svg += subtitleBlock.svg;
       }
@@ -279,7 +290,10 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
       const x2 = offsetX + readNumber(resolveValue(element.properties.x2, values, traces), x + w);
       const y2 = offsetY + readNumber(resolveValue(element.properties.y2, values, traces), y + h);
       const arrow = element.type === 'arrow';
-      if (arrow) svg += `<defs><marker id="arrow-${escapeXml(element.name)}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="${stroke}"/></marker></defs>`;
+      if (arrow) {
+        const markerSize = Math.max(5.25, strokeWidth * 1.45);
+        svg += `<defs><marker id="arrow-${escapeXml(element.name)}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="${round(markerSize, 2)}" markerHeight="${round(markerSize, 2)}" orient="auto-start-reverse"><path d="M 0 1.2 L 8.8 5 L 0 8.8 z" fill="${stroke}"/></marker></defs>`;
+      }
       svg += `<line x1="${round(x)}" y1="${round(y)}" x2="${round(x2)}" y2="${round(y2)}" stroke="${stroke}" stroke-width="${strokeWidth}"${dashAttr}${strokeOpacityAttr} ${arrow ? `marker-end="url(#arrow-${escapeXml(element.name)})"` : ''}/>`;
       if (label) {
         const labelBlock = await renderRichTextBlock(label, {
@@ -292,6 +306,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
           anchor: 'middle',
           maxLines: 2,
           latex: latexMode,
+          fontFamily,
         });
         svg += labelBlock.svg;
       }
@@ -306,7 +321,7 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
         svg += `<g transform="translate(${round(x + fit.dx)}, ${round(y + fit.dy)}) scale(${round(fit.scale, 4)})">${doc.svg}</g>`;
       } else {
         svg += `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" fill="#f1f5f9" stroke="#cbd5e1" rx="12"/>`;
-        svg += `<text x="${round(x + w / 2)}" y="${round(y + h / 2)}" text-anchor="middle" font-size="14" fill="#475569">Missing embed: ${escapeXml(target)}</text>`;
+        svg += `<text x="${round(x + w / 2)}" y="${round(y + h / 2)}" text-anchor="middle" font-size="14" font-family="${escapeXml(fontFamily)}" fill="#475569">Missing embed: ${escapeXml(target)}</text>`;
       }
       break;
     }
@@ -323,10 +338,11 @@ async function renderElement(element: DiagramElement, values: Record<string, GSV
           anchor: 'middle',
           maxLines: 3,
           latex: latexMode,
+          fontFamily,
         });
         svg += block.svg;
       }
-      if (element.children?.length) svg += await renderElements(element.children, values, traces, renderEmbed, assetBaseDir, x, y);
+      if (element.children?.length) svg += await renderElements(element.children, values, traces, renderEmbed, assetBaseDir, fontFamily, x, y);
       break;
   }
   return svg;
