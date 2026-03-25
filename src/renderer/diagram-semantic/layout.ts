@@ -14,6 +14,7 @@ import {
   MIN_ASSET_HEIGHT,
   MIN_ASSET_WIDTH,
   SECTION_TITLE_MIN,
+  BoxArea,
   CardLayout,
   CardMeasurement,
   ChildLayout,
@@ -68,7 +69,7 @@ export async function compileSemanticDiagram(
   const connectorElements = semantic.filter((element) => element.type === 'connector');
 
   const outerPadX = 36;
-  const outerPadBottom = 48;
+  const outerPadBottom = 36;
   const topPad = header ? 20 : 30;
   const contentX = outerPadX;
   const contentWidth = Math.max(900, width - outerPadX * 2);
@@ -127,6 +128,7 @@ export async function compileSemanticDiagram(
   let lanes = resolveLanes(laneElements, separator, values, traces, contentX, cursorY, contentWidth, height);
   const separatorHeight = separator ? Math.max(46, getNumber(separator, values, traces, 'h', 48)) : 0;
   const separatorGap = separator ? Math.max(CARD_GAP_MIN, getNumber(separator, values, traces, 'gap', 30)) : 0;
+  const reservedLabelAreas: BoxArea[] = [];
   const laneTop = cursorY + separatorHeight + separatorGap;
   for (const lane of lanes) {
     lane.frame.y = laneTop;
@@ -188,6 +190,12 @@ export async function compileSemanticDiagram(
         font_family: fontFamily,
         semantic_role: 'section_heading',
       }));
+      reservedLabelAreas.push({
+        x: lane.frame.x + 14,
+        y: cursorY + Math.max(0, (separatorHeight - labelBlock.height) / 2),
+        width: Math.max(120, lane.frame.w - 28),
+        height: labelBlock.height,
+      });
     }
   }
 
@@ -195,20 +203,23 @@ export async function compileSemanticDiagram(
     const separatorStroke = getString(separator, values, traces, 'stroke', '#a0a0a0');
     const dash = getString(separator, values, traces, 'dash', '10 12');
     const strokeWidth = getNumber(separator, values, traces, 'strokeWidth', 3);
-    lanes.slice(0, -1).forEach((lane, index) => {
-      const dividerX = lane.frame.x + lane.frame.w + 42;
-      compiled.push(element('line', `${separator.name}-divider-${index + 1}`, {
-        x: dividerX,
-        y: cursorY + 6,
-        x2: dividerX,
-        y2: contentBottom + 5,
-        stroke: separatorStroke,
-        strokeWidth,
-        dash,
-        strokeOpacity: getNumber(separator, values, traces, 'strokeOpacity', 0.6),
-        validation_ignore: true,
-      }));
-    });
+    const strokeOpacity = getNumber(separator, values, traces, 'strokeOpacity', 0.6);
+    if (strokeOpacity > 0.01) {
+      lanes.slice(0, -1).forEach((lane, index) => {
+        const dividerX = lane.frame.x + lane.frame.w + 42;
+        compiled.push(element('line', `${separator.name}-divider-${index + 1}`, {
+          x: dividerX,
+          y: cursorY + 6,
+          x2: dividerX,
+          y2: contentBottom + 5,
+          stroke: separatorStroke,
+          strokeWidth,
+          dash,
+          strokeOpacity,
+          validation_ignore: true,
+        }));
+      });
+    }
   }
 
   if (loopLabel) {
@@ -243,7 +254,7 @@ export async function compileSemanticDiagram(
 
   compiled.push(...cards.map((card) => card.compiled));
   const cardMap = new Map(cards.map((card) => [card.id, card]));
-  const routingContext: ConnectorRoutingContext = { segments: [], labels: [] };
+  const routingContext: ConnectorRoutingContext = { segments: [], labels: [...reservedLabelAreas] };
   const sortedConnectors = [...connectorElements].sort((a, b) =>
     estimateConnectorPriority(b, cardMap, values, traces) - estimateConnectorPriority(a, cardMap, values, traces),
   );
@@ -400,7 +411,7 @@ async function measureCard(
   traces: Map<string, Trace>,
   fontFamily: string,
 ): Promise<CardMeasurement> {
-  const padding = Math.max(24, getNumber(card, values, traces, 'padding', 24));
+  const padding = Math.max(20, getNumber(card, values, traces, 'padding', 24));
   const gap = Math.max(CHILD_GAP_MIN, getNumber(card, values, traces, 'gap', 18));
   const label = getString(card, values, traces, 'label', card.name);
   const subtitle = getString(card, values, traces, 'subtitle', '');
@@ -440,7 +451,7 @@ async function measureCard(
   const titleBottomGap = titleBlock.height ? 12 : 0;
   const subtitleGap = subtitleBlock.height ? 8 : 0;
   const headerHeight = titleBlock.height || subtitleBlock.height
-    ? Math.max(64, headerTop + titleBlock.height + (subtitleBlock.height ? titleBottomGap + subtitleBlock.height + subtitleGap : 0) + 12)
+    ? Math.max(58, headerTop + titleBlock.height + (subtitleBlock.height ? titleBottomGap + subtitleBlock.height + subtitleGap : 0) + 12)
     : 28;
 
   const innerWidth = Math.max(140, width - padding * 2);

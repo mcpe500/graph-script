@@ -21,7 +21,7 @@ export async function renderDiagram(decl: DiagramDeclaration, values: Record<str
   const finalWidth = compiled.hasSemantic && !fixedCanvas ? Math.max(640, compiled.minWidth) : width;
   const finalHeight = compiled.hasSemantic && !fixedCanvas
     ? Math.max(320, compiled.minHeight)
-    : Math.max(requestedHeight, compiled.minHeight);
+    : requestedHeight;
 
   let body = '';
   if (title) {

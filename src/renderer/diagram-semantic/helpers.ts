@@ -138,10 +138,13 @@ export function offsetChildren(children: DiagramElement[], dx: number, dy: numbe
 }
 
 export function offsetElement(elementToOffset: DiagramElement, dx: number, dy: number): DiagramElement {
-  return cloneElement(elementToOffset, {
+  const additions: Record<string, string | number | boolean> = {
     x: getLiteralNumber(elementToOffset.properties.x) + dx,
     y: getLiteralNumber(elementToOffset.properties.y) + dy,
-  });
+  };
+  if (elementToOffset.properties.x2) additions.x2 = getLiteralNumber(elementToOffset.properties.x2) + dx;
+  if (elementToOffset.properties.y2) additions.y2 = getLiteralNumber(elementToOffset.properties.y2) + dy;
+  return cloneElement(elementToOffset, additions);
 }
 
 export function getLiteralNumber(exprValue?: Expression): number {
