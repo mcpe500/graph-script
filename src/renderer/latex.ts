@@ -102,12 +102,11 @@ export function normalizeFormulaForLatex(value: string): string {
   if (/\\[A-Za-z]+/.test(stripped)) return stripped;
 
   let normalized = stripped;
-  normalized = normalized.replace(/\bSum_([A-Za-z0-9]+)/g, '\\sum_$1');
-  normalized = normalized.replace(/\bsum_([A-Za-z0-9]+)/g, '\\sum_$1');
+  normalized = normalized.replace(/\b(?:Sum|sum)_([A-Za-z0-9]+)\b/g, (_match, sub: string) => `\\sum_{${normalizeSubscriptToken(sub)}}`);
   normalized = normalized.replace(/\^dagger\b/g, '^\\dagger');
   normalized = normalized.replace(/->/g, '\\rightarrow');
-  normalized = normalized.replace(/\|([A-Za-z]+)\(([^)]*)\)>/g, (_match, name: string, args: string) =>
-    `|${normalizeIdentifier(name, true)}(${normalizeArgumentList(args)})\\rangle`,
+  normalized = normalized.replace(/\|([A-Za-z]+)(\(([^)]*)\))?>/g, (_match, name: string, _group: string | undefined, args: string | undefined) =>
+    `|${normalizeFunctionToken(name)}${args !== undefined ? `(${normalizeArgumentList(args)})` : ''}\\rangle`,
   );
   normalized = normalized.replace(/<([^<>\n]+)>/g, (_match, inner: string) => `\\langle ${normalizeMathExpression(inner)} \\rangle`);
   normalized = normalizeMathExpression(normalized);
@@ -520,9 +519,10 @@ function replaceOutsideExistingMath(value: string, transform: (segment: string) 
 
 function normalizePlainTextSegment(segment: string): string {
   let result = segment;
-  result = result.replace(/\|[A-Za-z]+\([^)]*\)>/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
+  result = result.replace(/\|[A-Za-z]+(?:\([^)]*\))?>/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
   result = result.replace(/<[^<>\n]+>/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
   result = result.replace(/\b[A-Za-z]+\((theta|phi|psi|lambda|alpha|beta|gamma|delta|omega)\)\b/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
+  result = result.replace(/\b(?:Sum|sum)_[A-Za-z0-9]+\b/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
   result = result.replace(/\(([A-Za-z]+_[A-Za-z0-9]+)\)/g, (_match, inner: string) => `($${normalizeFormulaForLatex(inner)}$)`);
   result = result.replace(/\b[A-Za-z]+_[A-Za-z0-9]+\b/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
   result = result.replace(/\b[A-Za-z]\^dagger\s*->\s*[A-Za-z]+\b/g, (match) => `$${normalizeFormulaForLatex(match)}$`);
@@ -532,23 +532,37 @@ function normalizePlainTextSegment(segment: string): string {
 
 function normalizeMathExpression(value: string): string {
   let normalized = value.trim();
-  normalized = normalized.replace(/\bPi\b/g, 'P_i');
-  normalized = normalized.replace(/\b([A-Za-z]+)_([A-Za-z0-9]+)\b/g, (_match, base: string, sub: string) => `${normalizeIdentifier(base, true)}_{${sub}}`);
-  normalized = normalized.replace(/\b([A-Za-z]+)\(([^)]*)\)/g, (_match, name: string, args: string) => `${normalizeIdentifier(name, true)}(${normalizeArgumentList(args)})`);
-  normalized = normalized.replace(/\b([A-Za-z]+)\b/g, (word) => normalizeIdentifier(word, false));
+  normalized = normalized.replace(/(?<!\\)\bPi\b/g, 'P_i');
+  normalized = normalized.replace(/(?<!\\)\b([A-Za-z]+)_([A-Za-z0-9]+)\b/g, (_match, base: string, sub: string) =>
+    `${normalizeSymbol(base)}_{${normalizeSubscriptToken(sub)}}`,
+  );
+  normalized = normalized.replace(/(?<!\\)\b([A-Za-z]+)\(([^)]*)\)/g, (_match, name: string, args: string) =>
+    `${normalizeFunctionToken(name)}(${normalizeArgumentList(args)})`,
+  );
+  normalized = normalized.replace(
+    new RegExp(`(?<!\\\\)\\b(${[...GREEK_WORDS].join('|')})\\b`, 'gi'),
+    (match) => `\\${match.toLowerCase()}`,
+  );
   return normalized;
 }
 
 function normalizeArgumentList(value: string): string {
   return value
     .split(',')
-    .map((part) => normalizeMathExpression(part))
+    .map((part) => normalizeMathExpression(part.trim()))
     .join(', ');
 }
 
-function normalizeIdentifier(word: string, allowOperatorWord: boolean): string {
+function normalizeSubscriptToken(value: string): string {
+  return normalizeMathExpression(value.trim());
+}
+
+function normalizeFunctionToken(word: string): string {
+  return normalizeSymbol(word);
+}
+
+function normalizeSymbol(word: string): string {
   const lower = word.toLowerCase();
   if (GREEK_WORDS.has(lower)) return `\\${lower}`;
-  if (allowOperatorWord && /^[A-Za-z]+$/.test(word) && word === lower) return `\\${word}`;
   return word;
 }

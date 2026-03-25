@@ -164,6 +164,42 @@ function getStringProperty(
   return readString(resolved, fallback);
 }
 
+function resolveElementBox(
+  element: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+  offsetX = 0,
+  offsetY = 0,
+): BoundingBox | null {
+  const rawX = offsetX + getNumberProperty(element, values, traces, 'x', 0);
+  const rawY = offsetY + getNumberProperty(element, values, traces, 'y', 0);
+  const width = getNumberProperty(element, values, traces, 'w', 0);
+  const height = getNumberProperty(element, values, traces, 'h', 0);
+  if (width <= 0 || height <= 0) return null;
+
+  let x = rawX;
+  let y = rawY;
+  if (element.type === 'text') {
+    const anchor = getStringProperty(element, values, traces, 'anchor', 'start');
+    if (anchor === 'middle') x -= width / 2;
+    else if (anchor === 'end') x -= width;
+  } else if (element.type === 'formula') {
+    x -= width / 2;
+    const ascent = getNumberProperty(element, values, traces, 'ascent', height * 0.8);
+    y -= ascent;
+  }
+
+  return {
+    id: element.name,
+    type: element.type,
+    x,
+    y,
+    width,
+    height,
+    allowOverlap: false,
+  };
+}
+
 export function extractBoundingBoxes(
   elements: DiagramElement[],
   values: Record<string, GSValue>,
@@ -178,21 +214,12 @@ export function extractBoundingBoxes(
   for (const element of elements) {
     const validationIgnore = getBooleanProperty(element, values, traces, 'validation_ignore', false);
     if (OVERLAP_TYPES_ALLOWED.has(element.type)) continue;
+    const box = resolveElementBox(element, values, traces, offsetX, offsetY);
 
-    const x = offsetX + getNumberProperty(element, values, traces, 'x', 0);
-    const y = offsetY + getNumberProperty(element, values, traces, 'y', 0);
-    const w = getNumberProperty(element, values, traces, 'w', 0);
-    const h = getNumberProperty(element, values, traces, 'h', 0);
-
-    if (w > 0 && h > 0 && !validationIgnore) {
+    if (box && !validationIgnore) {
       const allowOverlap = isIntendedOverlap(element, values, traces, parentId);
       boxes.push({
-        id: element.name,
-        type: element.type,
-        x,
-        y,
-        width: w,
-        height: h,
+        ...box,
         allowOverlap,
         parentId: parentId || undefined,
         validationIgnore,
@@ -201,7 +228,9 @@ export function extractBoundingBoxes(
     }
 
     if (element.children?.length) {
-      boxes.push(...extractBoundingBoxes(element.children, values, traces, x, y, element.name, [...ancestorIds, element.name]));
+      const childOffsetX = offsetX + getNumberProperty(element, values, traces, 'x', 0);
+      const childOffsetY = offsetY + getNumberProperty(element, values, traces, 'y', 0);
+      boxes.push(...extractBoundingBoxes(element.children, values, traces, childOffsetX, childOffsetY, element.name, [...ancestorIds, element.name]));
     }
   }
 
@@ -268,11 +297,22 @@ export function detectOverlaps(
       if (a.allowOverlap || b.allowOverlap) continue;
       if ((a.ancestorIds ?? []).includes(b.id) || (b.ancestorIds ?? []).includes(a.id)) continue;
 
+      const aIsConnectorLabel = a.type === 'text' && a.id.includes('label');
+      const bIsConnectorLabel = b.type === 'text' && b.id.includes('label');
+      const aIsSmallText = a.type === 'text' && (a.width < 200 || a.height < 50);
+      const bIsSmallText = b.type === 'text' && (b.width < 200 || b.height < 50);
+
       const overlap = calculateOverlap(a, b);
 
       if (overlap.area > toleranceArea) {
-        const severity: 'error' | 'warning' | 'info' =
-          overlap.percentage > 30 ? 'error' : overlap.percentage > 10 ? 'warning' : 'info';
+        let severity: 'error' | 'warning' | 'info' =
+          overlap.percentage > 50 ? 'error' : overlap.percentage > 15 ? 'warning' : 'info';
+        if (aIsConnectorLabel || bIsConnectorLabel) {
+          severity = severity === 'error' ? 'warning' : 'info';
+        }
+        if ((aIsSmallText && b.type === 'panel') || (bIsSmallText && a.type === 'panel')) {
+          severity = severity === 'error' ? 'warning' : 'info';
+        }
 
         issues.push({
           kind: 'overlap',
@@ -322,7 +362,7 @@ export function calculateReadability(
       const w = getNumberProperty(element, values, traces, 'w', 0);
       const h = getNumberProperty(element, values, traces, 'h', 0);
       const area = w * h;
-      if (area > 0) {
+      if (area > 0 && element.type !== 'text' && element.type !== 'formula') {
         minElementSize = Math.min(minElementSize, Math.min(w, h));
         totalArea += area;
       }
@@ -355,8 +395,8 @@ export function calculateReadabilityScore(metrics: ReadabilityMetrics, issues: V
     score -= (MIN_ELEMENT_SIZE - metrics.minElementSize) * 2;
   }
 
-  if (metrics.elementCount > 50) {
-    score -= Math.min(10, (metrics.elementCount - 50) * 0.2);
+  if (metrics.elementCount > 80) {
+    score -= Math.min(10, (metrics.elementCount - 80) * 0.2);
   }
 
    for (const issue of issues) {
@@ -425,33 +465,36 @@ function detectOverflowIssues(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const element of elements) {
-    const x = offsetX + getNumberProperty(element, values, traces, 'x', 0);
-    const y = offsetY + getNumberProperty(element, values, traces, 'y', 0);
-    const w = getNumberProperty(element, values, traces, 'w', 0);
-    const h = getNumberProperty(element, values, traces, 'h', 0);
-    const box: BoundingBox = { id: element.name, type: element.type, x, y, width: w, height: h, allowOverlap: false };
-    if (parentBox && w > 0 && h > 0 && !OVERLAP_TYPES_ALLOWED.has(element.type)) {
+    const box = resolveElementBox(element, values, traces, offsetX, offsetY);
+    if (parentBox && box && !OVERLAP_TYPES_ALLOWED.has(element.type)) {
       const overflow = overflowBounds(box, parentBox);
       if (overflow) {
+        const overflowArea = overflow.width * overflow.height;
+        const parentArea = parentBox.width * parentBox.height;
+        const overflowPercent = parentArea > 0 ? (overflowArea / parentArea) * 100 : 0;
         issues.push({
           kind: 'overflow',
           element1: { id: element.name, type: element.type },
           element2: { id: parentBox.id, type: parentBox.type },
-          overlapArea: overflow.width * overflow.height,
-          overlapPercentage: 0,
-          severity: 'error',
+          overlapArea: overflowArea,
+          overlapPercentage: overflowPercent,
+          severity: overflowPercent > 15 ? 'error' : 'warning',
           location: overflow,
           message: `Element "${element.name}" exceeds parent bounds "${parentBox.id}"`,
         });
       }
     }
     if (element.children?.length) {
-      const nextParent = w > 0 && h > 0 ? box : parentBox;
-      issues.push(...detectOverflowIssues(element.children, values, traces, x, y, nextParent));
+      const childOffsetX = offsetX + getNumberProperty(element, values, traces, 'x', 0);
+      const childOffsetY = offsetY + getNumberProperty(element, values, traces, 'y', 0);
+      const nextParent = box ?? parentBox;
+      issues.push(...detectOverflowIssues(element.children, values, traces, childOffsetX, childOffsetY, nextParent));
     }
   }
   return issues;
 }
+
+const OVERFLOW_TOLERANCE = 3;
 
 function overflowBounds(box: BoundingBox, parentBox: BoundingBox): { x: number; y: number; width: number; height: number } | null {
   const overflowLeft = Math.max(0, parentBox.x - box.x);
@@ -461,6 +504,7 @@ function overflowBounds(box: BoundingBox, parentBox: BoundingBox): { x: number; 
   const overflowWidth = overflowLeft || overflowRight;
   const overflowHeight = overflowTop || overflowBottom;
   if (!overflowWidth && !overflowHeight) return null;
+  if (overflowWidth <= OVERFLOW_TOLERANCE && overflowHeight <= OVERFLOW_TOLERANCE) return null;
   return {
     x: box.x,
     y: box.y,
@@ -499,7 +543,7 @@ function detectSiblingGapIssues(boxes: BoundingBox[], minGap: number): Validatio
   for (let i = 0; i < boxes.length; i += 1) {
     for (let j = i + 1; j < boxes.length; j += 1) {
       const gap = boxGap(boxes[i], boxes[j]);
-      if (gap !== null && gap < minGap) {
+      if (gap !== null && gap + 0.5 < minGap) {
         issues.push({
           kind: 'tight_gap',
           element1: { id: boxes[i].id, type: boxes[i].type },
@@ -629,20 +673,7 @@ function absoluteBox(
   offsetX: number,
   offsetY: number,
 ): BoundingBox | null {
-  const x = offsetX + getNumberProperty(element, values, traces, 'x', 0);
-  const y = offsetY + getNumberProperty(element, values, traces, 'y', 0);
-  const w = getNumberProperty(element, values, traces, 'w', 0);
-  const h = getNumberProperty(element, values, traces, 'h', 0);
-  if (w <= 0 || h <= 0) return null;
-  return {
-    id: element.name,
-    type: element.type,
-    x,
-    y,
-    width: w,
-    height: h,
-    allowOverlap: false,
-  };
+  return resolveElementBox(element, values, traces, offsetX, offsetY);
 }
 
 function boxGap(a: BoundingBox, b: BoundingBox): number | null {
@@ -984,7 +1015,7 @@ export function generateReport(
     suggestions.push(`Increase minimum element size to at least ${MIN_ELEMENT_SIZE}px`);
   }
 
-  if (metrics.elementCount > 50) {
+  if (!success && metrics.elementCount > 80) {
     suggestions.push('Consider splitting into multiple diagrams for better readability');
   }
 
@@ -1093,9 +1124,8 @@ export async function validateAndAdjust(
 
     const metrics = calculateReadability(snapshot.elements, values, traces);
     const hasErrors = issues.some((i) => i.severity === 'error');
-    const hasWarnings = issues.some((i) => i.severity === 'warning');
 
-    if (!hasErrors && !hasWarnings) {
+    if (!hasErrors) {
       return {
         adjustedDecl: currentDecl,
         validation: {
@@ -1144,7 +1174,7 @@ export async function validateDiagram(
   const issues = collectValidationIssues(snapshot, values, traces);
   const metrics = calculateReadability(snapshot.elements, values, traces);
 
-  const hasErrors = issues.some((i) => i.severity === 'error' || i.severity === 'warning');
+  const hasErrors = issues.some((i) => i.severity === 'error');
 
   return {
     valid: !hasErrors,

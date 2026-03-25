@@ -15,7 +15,7 @@ const HEADER_TITLE_MIN = 22;
 const CARD_TITLE_MIN = 18;
 const BODY_TEXT_MIN = 14;
 const FORMULA_TEXT_MIN = 18;
-const CONNECTOR_LABEL_MIN = 13;
+const CONNECTOR_LABEL_MIN = 14;
 const CARD_GAP_MIN = 24;
 const CHILD_GAP_MIN = 14;
 
@@ -361,9 +361,10 @@ async function layoutCards(
       const rowSpan = Math.max(1, getNumber(card, values, traces, 'row_span', 1));
       maxRow = Math.max(maxRow, row + rowSpan - 1);
       const slotWidth = columnWidth * span + lane.gapX * (span - 1);
-      const explicitWidth = readNumber(resolveValue(card.properties.w, values, traces), slotWidth);
+      const preferredWidth = readNumber(resolveValue(card.properties.w, values, traces), slotWidth);
       const minWidth = getNumber(card, values, traces, 'min_w', 0);
-      const width = Math.min(slotWidth, Math.max(minWidth || 0, explicitWidth || slotWidth, slotWidth));
+      const boundedMinWidth = minWidth > 0 ? Math.min(slotWidth, minWidth) : 0;
+      const width = Math.max(boundedMinWidth, Math.min(slotWidth, preferredWidth));
       const measurement = await measureCard(card, width, values, traces);
       measured.push({ card, row, col, span, rowSpan, width, height: measurement.height, children: measurement.children });
       if (rowSpan === 1) {
@@ -403,7 +404,8 @@ async function layoutCards(
       const slotWidth = columnWidth * entry.span + lane.gapX * (entry.span - 1);
       const x = innerX + (entry.col - 1) * (columnWidth + lane.gapX) + Math.max(0, (slotWidth - entry.width) / 2);
       const y = rowY.get(entry.row) ?? lane.frame.y;
-      const height = Math.max(entry.height, spanHeight(rowHeights, entry.row, entry.rowSpan, lane.gapY));
+      const reservedHeight = spanHeight(rowHeights, entry.row, entry.rowSpan, lane.gapY);
+      const height = entry.rowSpan > 1 ? Math.max(entry.height, reservedHeight) : entry.height;
       const compiled = compileMeasuredCard(entry.card, x, y, entry.width, height, entry.children, values, traces);
       cards.push({
         id: entry.card.name,
@@ -562,11 +564,13 @@ async function layoutRowChildren(
   const budget = Math.max(72, (width - options.gap * (count - 1)) / count);
   const measured = [];
   for (const child of children) {
-    const maxWidth = child.type === 'image' ? width : budget;
-    measured.push(await measureChild(child, maxWidth, values, traces));
+    measured.push(await measureChild(child, budget, values, traces));
+  }
+  const totalWidth = measured.reduce((sum, entry) => sum + entry.width, 0) + options.gap * Math.max(0, measured.length - 1);
+  if (totalWidth > width + 8 && children.length > 1) {
+    return layoutStackChildren(children, width, { ...options, align: options.align === 'stretch' ? 'stretch' : 'center' }, values, traces);
   }
   const rowHeight = Math.max(...measured.map((entry) => entry.height), 40);
-  const totalWidth = measured.reduce((sum, entry) => sum + entry.width, 0) + options.gap * Math.max(0, measured.length - 1);
   let cursorX = resolveAlignedX(options.align, width, totalWidth);
   const elements: DiagramElement[] = [];
   measured.forEach((entry) => {
@@ -644,7 +648,7 @@ async function measureChild(
       });
       const width = Math.min(maxWidth, Math.max(24, metrics.width));
       return {
-        width,
+        width: Math.max(24, metrics.width),
         height: Math.max(fontSize, metrics.height),
         elements: [
           cloneElement(child, {
@@ -666,16 +670,17 @@ async function measureChild(
       const fontSize = Math.max(FORMULA_TEXT_MIN, getNumber(child, values, traces, 'size', FORMULA_TEXT_MIN));
       const value = getString(child, values, traces, 'value', child.name);
       const metrics = await measureDisplayFormula(value, { fontSize });
-      const width = Math.min(Math.max(metrics.width, 48), maxWidth);
+      const constrainedWidth = Math.min(Math.max(metrics.width, 48), maxWidth);
       return {
-        width,
+        width: constrainedWidth,
         height: metrics.height,
         elements: [
           cloneElement(child, {
-            x: width / 2,
+            x: constrainedWidth / 2,
             y: metrics.ascent,
-            w: width,
+            w: constrainedWidth,
             h: metrics.height,
+            ascent: metrics.ascent,
             size: fontSize,
             math_fallback: metrics.fallback,
             normalized_value: metrics.normalizedValue,
@@ -685,8 +690,11 @@ async function measureChild(
       };
     }
     case 'image': {
-      const width = Math.min(maxWidth, readNumber(resolveValue(child.properties.w, values, traces), Math.min(maxWidth, 180)));
-      const height = readNumber(resolveValue(child.properties.h, values, traces), 82);
+      const naturalWidth = Math.max(1, readNumber(resolveValue(child.properties.w, values, traces), Math.min(maxWidth, 180)));
+      const naturalHeight = Math.max(1, readNumber(resolveValue(child.properties.h, values, traces), 82));
+      const width = Math.min(maxWidth, naturalWidth);
+      const scale = width / naturalWidth;
+      const height = naturalHeight * scale;
       return {
         width,
         height,
@@ -809,7 +817,7 @@ async function compileConnector(
   const label = getString(connector, values, traces, 'label', '');
   const labelDx = getNumber(connector, values, traces, 'label_dx', 0);
   const labelDy = getNumber(connector, values, traces, 'label_dy', -10);
-  const path = routeConnector(fromCard, fromRef.anchor, toCard, toRef.anchor, route);
+  const path = routeConnector(fromCard, fromRef.anchor, toCard, toRef.anchor, route, [...cardMap.values()]);
 
   const segments: DiagramElement[] = [];
   for (let index = 0; index < path.points.length - 1; index += 1) {
@@ -843,11 +851,30 @@ async function compileConnector(
       maxLines: 2,
     });
     if (path.labelSegmentLength >= labelMetrics.width + 24) {
+      let finalLabelX = path.labelX + labelDx;
+      let finalLabelY = path.labelY + labelDy;
+      const labelW = Math.min(260, labelMetrics.width + 12);
+      const labelH = labelMetrics.height;
+
+      for (const card of cardMap.values()) {
+        if (card.id === fromCard.id || card.id === toCard.id) continue;
+        const labelBox = { x: finalLabelX - labelW / 2, y: finalLabelY - labelH / 2, width: labelW, height: labelH };
+        if (boxesOverlap(labelBox, { x: card.x, y: card.y, width: card.width, height: card.height })) {
+          const currentRoute = getString(connector, values, traces, 'route', 'auto');
+          if (currentRoute === 'hvh' || currentRoute === 'vhv') {
+            finalLabelY = Math.min(card.y, fromCard.y, toCard.y) - labelH - 8;
+          } else {
+            finalLabelY = Math.max(card.y + card.height, fromCard.y + fromCard.height, toCard.y + toCard.height) + 8;
+          }
+          break;
+        }
+      }
+
       segments.push(element('text', `${connector.name}-label`, {
-        x: path.labelX + labelDx,
-        y: path.labelY + labelDy,
-        w: Math.min(260, labelMetrics.width + 12),
-        h: labelMetrics.height,
+        x: finalLabelX,
+        y: finalLabelY,
+        w: labelW,
+        h: labelH,
         anchor: 'middle',
         value: label,
         size: labelSize,
@@ -862,47 +889,42 @@ async function compileConnector(
   return segments;
 }
 
-function routeConnector(fromCard: CardLayout, fromAnchor: string, toCard: CardLayout, toAnchor: string, route: string): ConnectorPath {
+function boxesOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function routeConnector(
+  fromCard: CardLayout,
+  fromAnchor: string,
+  toCard: CardLayout,
+  toAnchor: string,
+  route: string,
+  cards: CardLayout[],
+): ConnectorPath {
   const offset = 24;
   const fromPoint = anchorPoint(fromCard, fromAnchor);
   const toPoint = anchorPoint(toCard, toAnchor);
   const fromOut = nudgePoint(fromPoint, fromAnchor, offset);
   const toOut = nudgePoint(toPoint, toAnchor, offset);
 
-  let points: { x: number; y: number }[];
-  switch (route) {
-    case 'hv':
-      points = [fromPoint, fromOut, { x: toOut.x, y: fromOut.y }, toOut, toPoint];
-      break;
-    case 'vh':
-      points = [fromPoint, fromOut, { x: fromOut.x, y: toOut.y }, toOut, toPoint];
-      break;
-    case 'vhv': {
-      const midY = chooseMidY(fromOut.y, toOut.y, fromAnchor, toAnchor);
-      points = [fromPoint, fromOut, { x: fromOut.x, y: midY }, { x: toOut.x, y: midY }, toOut, toPoint];
-      break;
+  const candidateRoutes = uniqueRoutes(route === 'auto'
+    ? ['auto', 'hvh', 'vhv', 'hv', 'vh']
+    : [route, 'hvh', 'vhv', 'hv', 'vh', 'auto']);
+
+  let best: { points: { x: number; y: number }[]; score: number } | null = null;
+  for (const candidate of candidateRoutes) {
+    const points = simplifyPoints(buildConnectorPoints(candidate, fromCard, fromAnchor, toCard, toAnchor, fromPoint, fromOut, toPoint, toOut, cards));
+    const score = scoreConnectorPath(points, cards, fromCard.id, toCard.id);
+    if (!best || score < best.score) {
+      best = { points, score };
     }
-    case 'hvh': {
-      const midX = chooseMidX(fromOut.x, toOut.x, fromAnchor, toAnchor);
-      points = [fromPoint, fromOut, { x: midX, y: fromOut.y }, { x: midX, y: toOut.y }, toOut, toPoint];
-      break;
-    }
-    default:
-      if (isHorizontalAnchor(fromAnchor) && isHorizontalAnchor(toAnchor)) {
-        const midX = chooseMidX(fromOut.x, toOut.x, fromAnchor, toAnchor);
-        points = [fromPoint, fromOut, { x: midX, y: fromOut.y }, { x: midX, y: toOut.y }, toOut, toPoint];
-      } else if (!isHorizontalAnchor(fromAnchor) && !isHorizontalAnchor(toAnchor)) {
-        const midY = chooseMidY(fromOut.y, toOut.y, fromAnchor, toAnchor);
-        points = [fromPoint, fromOut, { x: fromOut.x, y: midY }, { x: toOut.x, y: midY }, toOut, toPoint];
-      } else if (isHorizontalAnchor(fromAnchor)) {
-        points = [fromPoint, fromOut, { x: toOut.x, y: fromOut.y }, toOut, toPoint];
-      } else {
-        points = [fromPoint, fromOut, { x: fromOut.x, y: toOut.y }, toOut, toPoint];
-      }
-      break;
+    if (score === 0) break;
   }
 
-  points = simplifyPoints(points);
+  const points = best?.points ?? [fromPoint, fromOut, toOut, toPoint];
   let labelX = (fromPoint.x + toPoint.x) / 2;
   let labelY = (fromPoint.y + toPoint.y) / 2;
   let labelSegmentLength = 0;
@@ -920,16 +942,199 @@ function routeConnector(fromCard: CardLayout, fromAnchor: string, toCard: CardLa
   return { points, labelX, labelY, labelSegmentLength };
 }
 
-function chooseMidX(fromX: number, toX: number, fromAnchor: string, toAnchor: string): number {
+function buildConnectorPoints(
+  route: string,
+  fromCard: CardLayout,
+  fromAnchor: string,
+  toCard: CardLayout,
+  toAnchor: string,
+  fromPoint: { x: number; y: number },
+  fromOut: { x: number; y: number },
+  toPoint: { x: number; y: number },
+  toOut: { x: number; y: number },
+  cards: CardLayout[],
+): { x: number; y: number }[] {
+  switch (route) {
+    case 'hv':
+      return [fromPoint, fromOut, { x: toOut.x, y: fromOut.y }, toOut, toPoint];
+    case 'vh':
+      return [fromPoint, fromOut, { x: fromOut.x, y: toOut.y }, toOut, toPoint];
+    case 'vhv': {
+      const midY = chooseMidY(fromCard, toCard, fromOut.y, toOut.y, fromAnchor, toAnchor, cards);
+      return [fromPoint, fromOut, { x: fromOut.x, y: midY }, { x: toOut.x, y: midY }, toOut, toPoint];
+    }
+    case 'hvh': {
+      const midX = chooseMidX(fromCard, toCard, fromOut.x, toOut.x, fromOut.y, toOut.y, fromAnchor, toAnchor, cards);
+      return [fromPoint, fromOut, { x: midX, y: fromOut.y }, { x: midX, y: toOut.y }, toOut, toPoint];
+    }
+    default:
+      if (isHorizontalAnchor(fromAnchor) && isHorizontalAnchor(toAnchor)) {
+        const midX = chooseMidX(fromCard, toCard, fromOut.x, toOut.x, fromOut.y, toOut.y, fromAnchor, toAnchor, cards);
+        return [fromPoint, fromOut, { x: midX, y: fromOut.y }, { x: midX, y: toOut.y }, toOut, toPoint];
+      }
+      if (!isHorizontalAnchor(fromAnchor) && !isHorizontalAnchor(toAnchor)) {
+        const midY = chooseMidY(fromCard, toCard, fromOut.y, toOut.y, fromAnchor, toAnchor, cards);
+        return [fromPoint, fromOut, { x: fromOut.x, y: midY }, { x: toOut.x, y: midY }, toOut, toPoint];
+      }
+      if (isHorizontalAnchor(fromAnchor)) {
+        return [fromPoint, fromOut, { x: toOut.x, y: fromOut.y }, toOut, toPoint];
+      }
+      return [fromPoint, fromOut, { x: fromOut.x, y: toOut.y }, toOut, toPoint];
+  }
+}
+
+function chooseMidX(
+  fromCard: CardLayout,
+  toCard: CardLayout,
+  fromX: number,
+  toX: number,
+  fromY: number,
+  toY: number,
+  fromAnchor: string,
+  toAnchor: string,
+  cards: CardLayout[],
+): number {
+  const fallback = baseMidX(fromX, toX, fromAnchor, toAnchor);
+  const blocked = cards
+    .filter((card) => card.id !== fromCard.id && card.id !== toCard.id)
+    .filter((card) => overlaps(card.y - 24, card.y + card.height + 24, Math.min(fromY, toY), Math.max(fromY, toY)))
+    .map((card) => [card.x - 24, card.x + card.width + 24] as [number, number]);
+  return chooseFreeCorridor(fallback, Math.min(fromX, toX), Math.max(fromX, toX), blocked);
+}
+
+function chooseMidY(
+  fromCard: CardLayout,
+  toCard: CardLayout,
+  fromY: number,
+  toY: number,
+  fromAnchor: string,
+  toAnchor: string,
+  cards: CardLayout[],
+): number {
+  const fallback = baseMidY(fromY, toY, fromAnchor, toAnchor);
+  const blocked = cards
+    .filter((card) => card.id !== fromCard.id && card.id !== toCard.id)
+    .filter((card) => overlaps(card.x - 24, card.x + card.width + 24, Math.min(fromCard.x, toCard.x), Math.max(fromCard.x + fromCard.width, toCard.x + toCard.width)))
+    .map((card) => [card.y - 24, card.y + card.height + 24] as [number, number]);
+  return chooseFreeCorridor(fallback, Math.min(fromY, toY), Math.max(fromY, toY), blocked);
+}
+
+function baseMidX(fromX: number, toX: number, fromAnchor: string, toAnchor: string): number {
   if (fromAnchor === 'right' && toAnchor === 'left' && toX <= fromX) return Math.max(fromX, toX) + 48;
   if (fromAnchor === 'left' && toAnchor === 'right' && toX >= fromX) return Math.min(fromX, toX) - 48;
   return (fromX + toX) / 2;
 }
 
-function chooseMidY(fromY: number, toY: number, fromAnchor: string, toAnchor: string): number {
+function baseMidY(fromY: number, toY: number, fromAnchor: string, toAnchor: string): number {
   if (fromAnchor === 'bottom' && toAnchor === 'top' && toY <= fromY) return Math.max(fromY, toY) + 42;
   if (fromAnchor === 'top' && toAnchor === 'bottom' && toY >= fromY) return Math.min(fromY, toY) - 42;
   return (fromY + toY) / 2;
+}
+
+function chooseFreeCorridor(
+  preferred: number,
+  start: number,
+  end: number,
+  blocked: Array<[number, number]>,
+): number {
+  if (!blocked.length) return preferred;
+
+  const lower = Math.min(start, end) - 24;
+  const upper = Math.max(start, end) + 24;
+  const merged = mergeIntervals(blocked, lower, upper);
+  const gaps: Array<[number, number]> = [];
+  let cursor = lower;
+  for (const [blockStart, blockEnd] of merged) {
+    if (blockStart > cursor) gaps.push([cursor, blockStart]);
+    cursor = Math.max(cursor, blockEnd);
+  }
+  if (cursor < upper) gaps.push([cursor, upper]);
+  if (!gaps.length) return preferred;
+
+  const viable = gaps.filter(([gapStart, gapEnd]) => gapEnd - gapStart >= 18);
+  const candidates = viable.length ? viable : gaps;
+  const containing = candidates.find(([gapStart, gapEnd]) => preferred >= gapStart && preferred <= gapEnd);
+  if (containing) return preferred;
+
+  return candidates
+    .map(([gapStart, gapEnd]) => ({ center: (gapStart + gapEnd) / 2, width: gapEnd - gapStart }))
+    .sort((a, b) => Math.abs(a.center - preferred) - Math.abs(b.center - preferred) || b.width - a.width)[0].center;
+}
+
+function mergeIntervals(
+  intervals: Array<[number, number]>,
+  minValue: number,
+  maxValue: number,
+): Array<[number, number]> {
+  const sorted = intervals
+    .map(([start, end]) => [Math.max(minValue, start), Math.min(maxValue, end)] as [number, number])
+    .filter(([start, end]) => end > start)
+    .sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const interval of sorted) {
+    const last = merged[merged.length - 1];
+    if (!last || interval[0] > last[1]) {
+      merged.push([...interval] as [number, number]);
+    } else {
+      last[1] = Math.max(last[1], interval[1]);
+    }
+  }
+  return merged;
+}
+
+function uniqueRoutes(routes: string[]): string[] {
+  const seen = new Set<string>();
+  return routes.filter((route) => {
+    if (seen.has(route)) return false;
+    seen.add(route);
+    return true;
+  });
+}
+
+function scoreConnectorPath(
+  points: { x: number; y: number }[],
+  cards: CardLayout[],
+  fromId: string,
+  toId: string,
+): number {
+  let intersections = 0;
+  let length = 0;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    length += Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+    for (const card of cards) {
+      if (card.id === fromId || card.id === toId) continue;
+      if (segmentHitsCard(start, end, card)) intersections += 1;
+    }
+  }
+  return intersections * 100000 + length + Math.max(0, points.length - 2) * 12;
+}
+
+function segmentHitsCard(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  card: CardLayout,
+): boolean {
+  const left = card.x + 2;
+  const right = card.x + card.width - 2;
+  const top = card.y + 2;
+  const bottom = card.y + card.height - 2;
+  if (start.y === end.y) {
+    const minX = Math.min(start.x, end.x);
+    const maxX = Math.max(start.x, end.x);
+    return start.y > top && start.y < bottom && maxX > left && minX < right;
+  }
+  if (start.x === end.x) {
+    const minY = Math.min(start.y, end.y);
+    const maxY = Math.max(start.y, end.y);
+    return start.x > left && start.x < right && maxY > top && minY < bottom;
+  }
+  return false;
+}
+
+function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return Math.min(aEnd, bEnd) - Math.max(aStart, bStart) > 0;
 }
 
 function simplifyPoints(points: { x: number; y: number }[]): { x: number; y: number }[] {
@@ -1025,14 +1230,10 @@ function offsetChildren(children: DiagramElement[], dx: number, dy: number): Dia
 }
 
 function offsetElement(elementToOffset: DiagramElement, dx: number, dy: number): DiagramElement {
-  const next = cloneElement(elementToOffset, {
+  return cloneElement(elementToOffset, {
     x: getLiteralNumber(elementToOffset.properties.x) + dx,
     y: getLiteralNumber(elementToOffset.properties.y) + dy,
   });
-  if (next.children?.length) {
-    next.children = offsetChildren(next.children, dx, dy);
-  }
-  return next;
 }
 
 function getLiteralNumber(exprValue?: Expression): number {

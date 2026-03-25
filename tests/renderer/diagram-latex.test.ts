@@ -2,6 +2,7 @@ import { Parser } from '../../src/parser';
 import { Evaluator } from '../../src/runtime';
 import { DiagramDeclaration } from '../../src/ast/types';
 import { renderDiagram } from '../../src/renderer/diagram';
+import { normalizeFormulaForLatex } from '../../src/renderer/latex';
 
 async function render(source: string): Promise<string> {
   const parser = new Parser();
@@ -13,6 +14,12 @@ async function render(source: string): Promise<string> {
 }
 
 describe('Diagram LaTeX rendering', () => {
+  test('normalizes shorthand formulas without producing invalid escaped commands', () => {
+    expect(normalizeFormulaForLatex('<H> = Sum_i c_i <P_i>')).toBe('\\langle H \\rangle = \\sum_{i} c_{i} \\langle P_{i} \\rangle');
+    expect(normalizeFormulaForLatex('|psi(theta)>')).toBe('|\\psi(\\theta)\\rangle');
+    expect(normalizeFormulaForLatex('S^dagger -> H')).toBe('S^\\dagger \\rightarrow H');
+  });
+
   test('renders formula nodes as MathJax SVG fragments', async () => {
     const svg = await render(`diagram "Latex":
   width = 800
@@ -51,5 +58,8 @@ describe('Diagram LaTeX rendering', () => {
     expect(svg).toContain('data-latex');
     expect(svg).toContain('\\langle H \\rangle');
     expect(svg).toContain('\\psi');
+    expect(svg).not.toContain('\\\\\\sum');
+    expect(svg).not.toContain('\\\\\\psi');
+    expect(svg).not.toContain('\\c_{i}');
   });
 });

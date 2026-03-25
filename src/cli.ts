@@ -5,7 +5,7 @@ import * as path from 'path';
 import { Parser } from './parser';
 import { Evaluator } from './runtime';
 import { Renderer } from './renderer';
-import { isValidatableDeclaration, validateDiagram, calculateReadability, calculateReadabilityScore, generateReport, writeValidationReport } from './renderer/validator';
+import { isValidatableDeclaration, validateAndAdjust, writeValidationReport } from './renderer/validator';
 
 interface CliOptions {
   command: 'check' | 'run' | 'render';
@@ -99,22 +99,24 @@ async function main(args: string[]): Promise<void> {
         const decl = value as any;
 
         if (isValidatableDeclaration(decl.type)) {
-            const elements = decl.elements || [];
-            if (elements.length > 0) {
-              const metrics = calculateReadability(elements, values, traces);
-              const validation = await validateDiagram(decl, values, traces);
+          const elements = decl.elements || [];
+          if (elements.length > 0) {
+            const result = await validateAndAdjust(decl, values, traces, 0);
+            const validation = result.validation;
+            const report = result.report;
 
-              console.log(`\n${decl.name || name} (${decl.type}):`);
-              console.log(`  Readability Score: ${validation.readabilityScore}/100`);
-            console.log(`  Elements: ${metrics.elementCount}`);
-            console.log(`  Min Font Size: ${metrics.minFontSize}px`);
-            console.log(`  Min Element Size: ${metrics.minElementSize}px`);
+            console.log(`\n${decl.name || name} (${decl.type}):`);
+            console.log(`  Readability Score: ${validation.readabilityScore}/100`);
+            console.log(`  Elements: ${report.metrics.elementCount}`);
+            console.log(`  Min Font Size: ${report.metrics.minFontSize}px`);
+            console.log(`  Min Element Size: ${report.metrics.minElementSize}px`);
 
             if (validation.issues.length > 0) {
-              hasIssues = true;
               const errors = validation.issues.filter(i => i.severity === 'error');
               const warnings = validation.issues.filter(i => i.severity === 'warning');
               const infos = validation.issues.filter(i => i.severity === 'info');
+
+              if (errors.length > 0) hasIssues = true;
 
               if (errors.length > 0) console.log(`  Errors: ${errors.length}`);
               if (warnings.length > 0) console.log(`  Warnings: ${warnings.length}`);
@@ -133,7 +135,6 @@ async function main(args: string[]): Promise<void> {
 
             if (options.validationReport) {
               fs.mkdirSync(outputDir, { recursive: true });
-              const report = generateReport(0, validation.issues, metrics, validation.valid, decl.name || name, decl.type);
               const reportPath = path.join(outputDir, `${sanitizeFileName(decl.name || name)}-validation.json`);
               writeValidationReport(report, reportPath, decl.name || name);
               console.log(`  Report: ${reportPath}`);
