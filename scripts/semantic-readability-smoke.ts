@@ -24,8 +24,6 @@ const cases: SmokeCase[] = [
     name: 'Figure 4.16',
     file: path.join(repoRoot, 'temp', 'fig-4-16-vqe-measurement.gs'),
     minScore: 100,
-    width: 1240,
-    height: 1220,
     minFont: 18,
   },
   {
