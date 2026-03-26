@@ -14,6 +14,7 @@ export const CARD_TITLE_MIN = 20;
 export const BODY_TEXT_MIN = 16;
 export const FORMULA_TEXT_MIN = 22;
 export const CONNECTOR_LABEL_MIN = 16;
+export const CONNECTOR_TRACK_MIN_GAP = 28;
 export const CARD_GAP_MIN = 28;
 export const CHILD_GAP_MIN = 16;
 export const MIN_ASSET_WIDTH = 120;

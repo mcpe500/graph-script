@@ -3,6 +3,7 @@ import {
   BODY_TEXT_MIN,
   CARD_TITLE_MIN,
   CONNECTOR_LABEL_MIN,
+  CONNECTOR_TRACK_MIN_GAP,
   FORMULA_TEXT_MIN,
   HEADER_TITLE_MIN,
   SECTION_TITLE_MIN,
@@ -15,6 +16,7 @@ export const MIN_ELEMENT_SIZE = 20;
 export const MIN_LAYOUT_GAP = 14;
 export const EXCESSIVE_GAP_MULTIPLIER = 3;
 export const OVERFLOW_TOLERANCE = 3;
+export { CONNECTOR_TRACK_MIN_GAP };
 
 export interface BoundingBox {
   id: string;
@@ -36,6 +38,7 @@ export interface ValidationIssue {
     | 'tight_gap'
     | 'awkward_spacing'
     | 'connector_cross_panel'
+    | 'connector_crowding'
     | 'math_fallback'
     | 'undersized_text'
     | 'undersized_asset'

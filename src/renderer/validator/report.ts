@@ -57,6 +57,9 @@ export function generateReport(
   if (issues.some((issue) => issue.kind === 'connector_label_crowding')) {
     suggestions.push('Reserve clearer space for connector labels away from panels and neighboring labels');
   }
+  if (issues.some((issue) => issue.kind === 'connector_crowding')) {
+    suggestions.push('Reroute semantic connectors so parallel segments do not share the same corridor or run too close together');
+  }
 
   return {
     timestamp: new Date().toISOString(),

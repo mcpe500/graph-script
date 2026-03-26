@@ -1,7 +1,15 @@
 import { DiagramElement } from '../../ast/types';
 import { GSValue, Trace } from '../../runtime/values';
 import { measureRichTextBlock, readLatexMode } from '../latex';
-import { CardLayout, BoxArea, ConnectorPath, ConnectorRoutingContext, ConnectorSegmentObstacle, CONNECTOR_LABEL_MIN } from './types';
+import {
+  CardLayout,
+  BoxArea,
+  ConnectorPath,
+  ConnectorRoutingContext,
+  ConnectorSegmentObstacle,
+  CONNECTOR_LABEL_MIN,
+  CONNECTOR_TRACK_MIN_GAP,
+} from './types';
 import { clamp, element, getNumber, getString } from './helpers';
 
 export async function compileConnector(
@@ -452,16 +460,21 @@ function corridorCandidates(preferred: number, start: number, end: number, block
   }
 
   for (const occupied of occupiedCorridors) {
-    values.add(occupied - 36);
-    values.add(occupied + 36);
-    values.add(occupied - 60);
-    values.add(occupied + 60);
+    values.add(occupied - CONNECTOR_TRACK_MIN_GAP);
+    values.add(occupied + CONNECTOR_TRACK_MIN_GAP);
+    values.add(occupied - CONNECTOR_TRACK_MIN_GAP * 2);
+    values.add(occupied + CONNECTOR_TRACK_MIN_GAP * 2);
   }
 
-  return [...values]
+  const candidates = [...values]
     .map((value) => clamp(value, lower - 120, upper + 120))
     .filter((value, index, array) => array.findIndex((candidate) => Math.abs(candidate - value) < 1) === index)
     .sort((a, b) => Math.abs(a - preferred) - Math.abs(b - preferred));
+
+  const separated = candidates.filter((candidate) =>
+    occupiedCorridors.every((occupied) => Math.abs(candidate - occupied) + 0.1 >= CONNECTOR_TRACK_MIN_GAP),
+  );
+  return separated.length ? separated : candidates;
 }
 
 function baseMidX(fromX: number, toX: number, fromAnchor: string, toAnchor: string): number {
@@ -573,43 +586,54 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): b
 function spreadConnectorPath(points: { x: number; y: number }[], routingContext: ConnectorRoutingContext): { x: number; y: number }[] {
   if (points.length < 5 || !routingContext.segments.length) return points;
   const adjusted = points.map((point) => ({ ...point }));
-  const minimumSpacing = 34;
+  const maxPasses = 4;
 
-  for (let index = 1; index < adjusted.length - 2; index += 1) {
-    const start = adjusted[index];
-    const end = adjusted[index + 1];
-    if (start.x !== end.x && start.y !== end.y) continue;
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let changed = false;
 
-    let requiredShift = 0;
-    for (const existing of routingContext.segments) {
-      if (start.x === end.x && existing.start.x === existing.end.x) {
-        const delta = Math.abs(start.x - existing.start.x);
-        const overlapLength = rangeOverlapLength(start.y, end.y, existing.start.y, existing.end.y);
-        if (delta < minimumSpacing && overlapLength > 0) requiredShift = Math.max(requiredShift, minimumSpacing - delta + 6);
+    for (let index = 1; index < adjusted.length - 2; index += 1) {
+      const start = adjusted[index];
+      const end = adjusted[index + 1];
+      if (start.x !== end.x && start.y !== end.y) continue;
+
+      let requiredShift = 0;
+      for (const existing of routingContext.segments) {
+        if (start.x === end.x && existing.start.x === existing.end.x) {
+          const delta = Math.abs(start.x - existing.start.x);
+          const overlapLength = rangeOverlapLength(start.y, end.y, existing.start.y, existing.end.y);
+          if (delta + 0.1 < CONNECTOR_TRACK_MIN_GAP && overlapLength > 0) {
+            requiredShift = Math.max(requiredShift, CONNECTOR_TRACK_MIN_GAP - delta);
+          }
+        }
+        if (start.y === end.y && existing.start.y === existing.end.y) {
+          const delta = Math.abs(start.y - existing.start.y);
+          const overlapLength = rangeOverlapLength(start.x, end.x, existing.start.x, existing.end.x);
+          if (delta + 0.1 < CONNECTOR_TRACK_MIN_GAP && overlapLength > 0) {
+            requiredShift = Math.max(requiredShift, CONNECTOR_TRACK_MIN_GAP - delta);
+          }
+        }
       }
-      if (start.y === end.y && existing.start.y === existing.end.y) {
-        const delta = Math.abs(start.y - existing.start.y);
-        const overlapLength = rangeOverlapLength(start.x, end.x, existing.start.x, existing.end.x);
-        if (delta < minimumSpacing && overlapLength > 0) requiredShift = Math.max(requiredShift, minimumSpacing - delta + 6);
+
+      if (requiredShift <= 0) continue;
+      if (start.x === end.x) {
+        const before = adjusted[index - 1];
+        const after = adjusted[index + 2];
+        const center = (before.x + after.x) / 2;
+        const direction = start.x <= center ? -1 : 1;
+        adjusted[index] = { x: adjusted[index].x + direction * requiredShift, y: adjusted[index].y };
+        adjusted[index + 1] = { x: adjusted[index + 1].x + direction * requiredShift, y: adjusted[index + 1].y };
+      } else {
+        const before = adjusted[index - 1];
+        const after = adjusted[index + 2];
+        const center = (before.y + after.y) / 2;
+        const direction = start.y <= center ? -1 : 1;
+        adjusted[index] = { x: adjusted[index].x, y: adjusted[index].y + direction * requiredShift };
+        adjusted[index + 1] = { x: adjusted[index + 1].x, y: adjusted[index + 1].y + direction * requiredShift };
       }
+      changed = true;
     }
 
-    if (requiredShift <= 0) continue;
-    if (start.x === end.x) {
-      const before = adjusted[index - 1];
-      const after = adjusted[index + 2];
-      const center = (before.x + after.x) / 2;
-      const direction = start.x <= center ? -1 : 1;
-      adjusted[index] = { x: adjusted[index].x + direction * requiredShift, y: adjusted[index].y };
-      adjusted[index + 1] = { x: adjusted[index + 1].x + direction * requiredShift, y: adjusted[index + 1].y };
-    } else {
-      const before = adjusted[index - 1];
-      const after = adjusted[index + 2];
-      const center = (before.y + after.y) / 2;
-      const direction = start.y <= center ? -1 : 1;
-      adjusted[index] = { x: adjusted[index].x, y: adjusted[index].y + direction * requiredShift };
-      adjusted[index + 1] = { x: adjusted[index + 1].x, y: adjusted[index + 1].y + direction * requiredShift };
-    }
+    if (!changed) break;
   }
 
   return simplifyPoints(adjusted);
@@ -649,14 +673,18 @@ function scoreSegmentInteraction(startA: { x: number; y: number }, endA: { x: nu
     const delta = Math.abs(startA.x - startB.x);
     const overlapLength = rangeOverlapLength(startA.y, endA.y, startB.y, endB.y);
     if (delta < 1 && overlapLength > 0) return 90000 + overlapLength * 18;
-    if (delta < 24 && overlapLength > 0) return 22000 + Math.round((24 - delta) * overlapLength * 1.5);
+    if (delta < CONNECTOR_TRACK_MIN_GAP && overlapLength > 0) {
+      return 42000 + Math.round((CONNECTOR_TRACK_MIN_GAP - delta) * overlapLength * 1.8);
+    }
     return 0;
   }
   if (startA.y === endA.y && startB.y === endB.y) {
     const delta = Math.abs(startA.y - startB.y);
     const overlapLength = rangeOverlapLength(startA.x, endA.x, startB.x, endB.x);
     if (delta < 1 && overlapLength > 0) return 90000 + overlapLength * 18;
-    if (delta < 24 && overlapLength > 0) return 22000 + Math.round((24 - delta) * overlapLength * 1.5);
+    if (delta < CONNECTOR_TRACK_MIN_GAP && overlapLength > 0) {
+      return 42000 + Math.round((CONNECTOR_TRACK_MIN_GAP - delta) * overlapLength * 1.8);
+    }
     return 0;
   }
   if (segmentsCrossOrthogonally(startA, endA, startB, endB)) return 6000;
