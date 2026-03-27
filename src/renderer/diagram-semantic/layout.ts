@@ -582,9 +582,18 @@ async function layoutRowChildren(
   let measured = naturalMeasured;
   let totalWidth = naturalTotalWidth;
   if (naturalTotalWidth > width + 8) {
-    const budget = Math.max(84, (width - options.gap * (count - 1)) / count);
-    const compactMeasured = [];
-    for (const child of children) compactMeasured.push(await measureChild(child, budget, values, traces, fontFamily, imageScale, fillImages, fontScale));
+    const compactMeasured = await measureRowChildrenToFit(
+      children,
+      naturalMeasured,
+      width,
+      options,
+      values,
+      traces,
+      fontFamily,
+      imageScale,
+      fillImages,
+      fontScale,
+    );
     const compactTotalWidth = compactMeasured.reduce((sum, entry) => sum + entry.width, 0) + options.gap * Math.max(0, compactMeasured.length - 1);
     if (compactTotalWidth > width + 8 && children.length > 1) {
       return layoutStackChildren(children, width, { ...options, align: options.align === 'stretch' ? 'stretch' : 'center' }, values, traces, fontFamily, imageScale, fillImages, fontScale);
@@ -602,6 +611,59 @@ async function layoutRowChildren(
     cursorX += entry.width + options.gap;
   });
   return { width: Math.min(width, totalWidth), height: rowHeight, elements };
+}
+
+async function measureRowChildrenToFit(
+  children: DiagramElement[],
+  naturalMeasured: ChildLayout[],
+  width: number,
+  options: ContainerOptions,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+  fontFamily: string,
+  imageScale: number,
+  fillImages: boolean,
+  fontScale: number,
+): Promise<ChildLayout[]> {
+  const count = Math.max(children.length, 1);
+  const availableWidth = Math.max(84 * count, width - options.gap * Math.max(0, count - 1));
+  const fixedIndices = children
+    .map((child, index) => (child.properties.w != null && child.type !== 'image' ? index : -1))
+    .filter((index) => index >= 0);
+  const flexibleIndices = children
+    .map((child, index) => (child.properties.w == null || child.type === 'image' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (!flexibleIndices.length) {
+    const budget = Math.max(84, availableWidth / count);
+    return Promise.all(children.map((child) => measureChild(child, budget, values, traces, fontFamily, imageScale, fillImages, fontScale)));
+  }
+
+  const fixedWidth = fixedIndices.reduce((sum, index) => sum + naturalMeasured[index].width, 0);
+  if (fixedWidth >= availableWidth - 8) {
+    const budget = Math.max(84, availableWidth / count);
+    return Promise.all(children.map((child) => measureChild(child, budget, values, traces, fontFamily, imageScale, fillImages, fontScale)));
+  }
+
+  const flexibleNaturalWidth = flexibleIndices.reduce((sum, index) => sum + Math.max(84, naturalMeasured[index].width), 0);
+  const remainingWidth = Math.max(84 * flexibleIndices.length, availableWidth - fixedWidth);
+  const budgets = new Map<number, number>();
+  for (const index of fixedIndices) budgets.set(index, naturalMeasured[index].width);
+
+  let allocatedFlexibleWidth = 0;
+  flexibleIndices.forEach((index, position) => {
+    const isLast = position === flexibleIndices.length - 1;
+    const naturalWidth = Math.max(84, naturalMeasured[index].width);
+    const share = flexibleNaturalWidth > 0 ? remainingWidth * (naturalWidth / flexibleNaturalWidth) : remainingWidth / flexibleIndices.length;
+    const budget = isLast
+      ? Math.max(84, remainingWidth - allocatedFlexibleWidth)
+      : Math.max(84, share);
+    budgets.set(index, budget);
+    allocatedFlexibleWidth += budget;
+  });
+
+  return Promise.all(children.map((child, index) =>
+    measureChild(child, Math.max(84, budgets.get(index) ?? (availableWidth / count)), values, traces, fontFamily, imageScale, fillImages, fontScale)));
 }
 
 async function layoutColumnChildren(
@@ -827,10 +889,13 @@ async function measureChild(
       const gap = Math.max(CHILD_GAP_MIN, getNumber(child, values, traces, 'gap', CHILD_GAP_MIN));
       const layout = readContainerOptions(child, values, traces, 'stack', gap);
       const hasExplicitWidth = child.properties.w != null;
-      let groupWidth = Math.min(maxWidth, Math.max(80, getNumber(child, values, traces, 'w', maxWidth)));
+      const stretchWidth = !hasExplicitWidth && layout.align === 'stretch';
+      let groupWidth = stretchWidth
+        ? maxWidth
+        : Math.min(maxWidth, Math.max(80, getNumber(child, values, traces, 'w', maxWidth)));
       let innerWidth = Math.max(60, groupWidth - padding * 2);
       let content = await layoutContainerChildren(child.children ?? [], innerWidth, layout, values, traces, fontFamily, imageScale, fillImages, fontScale);
-      if (!hasExplicitWidth) {
+      if (!hasExplicitWidth && !stretchWidth) {
         groupWidth = clamp(content.width + padding * 2, 80, maxWidth);
         innerWidth = Math.max(60, groupWidth - padding * 2);
         content = await layoutContainerChildren(child.children ?? [], innerWidth, layout, values, traces, fontFamily, imageScale, fillImages, fontScale);
