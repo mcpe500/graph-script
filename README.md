@@ -10,7 +10,7 @@
 
 *A unified DSL for computation, explanation, and rendering*
 
-[Getting Started](#getting-started) • [Examples](#examples) • [Documentation](#documentation) • [Contributing](#contributing)
+[Getting Started](#getting-started) • [Examples](#examples) • [Documentation](docs.md) • [Contributing](#contributing)
 
 </div>
 
@@ -22,6 +22,7 @@
 - [Features](#features)
 - [Installation](#installation)
 - [Getting Started](#getting-started)
+- [How to Use Guide](docs.md)
 - [Language Basics](#language-basics)
 - [Core Concepts](#core-concepts)
 - [Declarations](#declarations)
