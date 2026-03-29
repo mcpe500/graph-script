@@ -69,6 +69,9 @@ export function generateReport(
   if (issues.some((issue) => issue.kind === 'misaligned_siblings')) {
     suggestions.push('Snap related sibling panels onto the same row/column tracks so repeated structures align cleanly');
   }
+  if (issues.some((issue) => issue.kind === 'plain_math_text')) {
+    suggestions.push('Rewrite math-like text with inline LaTeX delimiters or use formula elements so notation is typeset correctly');
+  }
 
   return {
     timestamp: new Date().toISOString(),

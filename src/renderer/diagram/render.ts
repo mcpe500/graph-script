@@ -36,7 +36,7 @@ export async function renderDiagram(
     readabilityMode,
   });
   const elements = !compiled.hasSemantic
-    ? normalizeDiagramElementsForReadability(compiled.elements, values, traces, { mode: readabilityMode })
+    ? await normalizeDiagramElementsForReadability(compiled.elements, values, traces, { mode: readabilityMode, fontFamily })
     : compiled.elements;
 
   const finalWidth = compiled.hasSemantic && !fixedCanvas ? Math.max(640, compiled.minWidth) : width;

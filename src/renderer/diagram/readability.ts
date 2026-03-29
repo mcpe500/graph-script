@@ -2,6 +2,12 @@ import { DiagramElement } from '../../ast/types';
 import { GSValue, Trace } from '../../runtime/values';
 import { resolveValue } from '../common';
 import {
+  DEFAULT_FONT_FAMILY,
+  measureDisplayFormula,
+  measureRichTextBlock,
+  readLatexMode,
+} from '../latex';
+import {
   ReadabilityMode,
   READABILITY_POLICY,
   readReadabilityMode,
@@ -17,16 +23,19 @@ type BoxLikeElement = DiagramElement & { properties: Record<string, any> };
 
 export interface DiagramReadabilityOptions {
   mode: ReadabilityMode;
+  fontFamily?: string;
 }
 
-export function normalizeDiagramElementsForReadability(
+export async function normalizeDiagramElementsForReadability(
   elements: DiagramElement[],
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
   options: DiagramReadabilityOptions,
-): DiagramElement[] {
+) : Promise<DiagramElement[]> {
   if (options.mode === 'legacy') return elements;
-  const normalized = elements.map((element) => normalizeElementTypography(element, values, traces));
+  const normalized = await Promise.all(
+    elements.map((element) => normalizeElementTypography(element, values, traces, options)),
+  );
   return normalizeSiblingBoxes(normalized, values, traces);
 }
 
@@ -39,11 +48,12 @@ export function readDiagramReadabilityMode(
   return readReadabilityMode(element?.properties?.readability_mode, values, traces, fallback);
 }
 
-function normalizeElementTypography(
+async function normalizeElementTypography(
   element: DiagramElement,
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
-): DiagramElement {
+  options: DiagramReadabilityOptions,
+): Promise<DiagramElement> {
   const properties = { ...element.properties };
 
   if (element.type === 'text') {
@@ -64,10 +74,148 @@ function normalizeElementTypography(
 
   let result: DiagramElement = { ...element, properties };
   if (element.children?.length) {
-    const children = element.children.map((child) => normalizeElementTypography(child, values, traces));
+    let children = await Promise.all(
+      element.children.map((child) => normalizeElementTypography(child, values, traces, options)),
+    );
+    if (isBoxLike(result)) {
+      children = await normalizeMeasuredChildLayout(children, values, traces, options.fontFamily ?? DEFAULT_FONT_FAMILY);
+    }
     result = { ...result, children: normalizeSiblingBoxes(children, values, traces) };
   }
   return resizeContainerToContent(result, values, traces);
+}
+
+async function normalizeMeasuredChildLayout(
+  children: DiagramElement[],
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+  fontFamily: string,
+): Promise<DiagramElement[]> {
+  const measured = await Promise.all(children.map((child) => measureChildForReadability(child, values, traces, fontFamily)));
+  return shiftStackedChildrenDown(measured, children, values, traces);
+}
+
+async function measureChildForReadability(
+  child: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+  fontFamily: string,
+): Promise<DiagramElement> {
+  if (!isReadabilityMeasuredChild(child, values, traces)) return child;
+  if (child.type === 'text') {
+    return measureTextChildForReadability(child, values, traces, fontFamily);
+  }
+  if (child.type === 'formula') {
+    return measureFormulaChildForReadability(child, values, traces);
+  }
+  return child;
+}
+
+async function measureTextChildForReadability(
+  child: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+  fontFamily: string,
+): Promise<DiagramElement> {
+  const value = readStringProperty(child.properties.value, values, traces, readStringProperty(child.properties.label, values, traces, ''));
+  if (!value.trim()) return child;
+
+  const width = readNumberProperty(child.properties.w, values, traces, 0);
+  const currentHeight = readNumberProperty(child.properties.h, values, traces, 0);
+  const fontSize = readNumberProperty(child.properties.size, values, traces, READABILITY_POLICY.bodyTextMin);
+  const weight = readStringProperty(child.properties.weight, values, traces, '600');
+  const latexMode = readLatexMode(resolveValue(child.properties.latex, values, traces), 'auto');
+  const metrics = await measureRichTextBlock(value, {
+    x: 0,
+    y: 0,
+    maxWidth: width > 0 ? width : Number.POSITIVE_INFINITY,
+    fontSize,
+    weight,
+    maxLines: Math.max(6, Math.ceil(Math.max(currentHeight, fontSize) / Math.max(fontSize + 4, 1)) + 4),
+    latex: latexMode,
+    fontFamily,
+  });
+
+  let next = child;
+  if (width <= 0 && metrics.width > 0) {
+    next = setNumberProperty(next, 'w', Math.ceil(metrics.width));
+  }
+  const desiredHeight = Math.max(currentHeight, Math.ceil(metrics.height));
+  if (desiredHeight > currentHeight + 1 || currentHeight <= 0) {
+    next = setNumberProperty(next, 'h', desiredHeight);
+  }
+  next = setLiteralProperty(next, 'math_fallback', metrics.mathFallbackCount > 0);
+  return next;
+}
+
+async function measureFormulaChildForReadability(
+  child: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+): Promise<DiagramElement> {
+  const value = readStringProperty(child.properties.value, values, traces, readStringProperty(child.properties.label, values, traces, ''));
+  if (!value.trim()) return child;
+
+  const fontSize = readNumberProperty(child.properties.size, values, traces, READABILITY_POLICY.formulaTextMin);
+  const metrics = await measureDisplayFormula(value, { fontSize });
+
+  let next = child;
+  next = setNumberProperty(next, 'w', Math.ceil(metrics.width));
+  next = setNumberProperty(next, 'h', Math.ceil(metrics.height));
+  next = setNumberProperty(next, 'ascent', Math.ceil(metrics.ascent));
+  next = setLiteralProperty(next, 'math_fallback', metrics.fallback);
+  return next;
+}
+
+function shiftStackedChildrenDown(
+  children: DiagramElement[],
+  originalChildren: DiagramElement[],
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+): DiagramElement[] {
+  const result = [...children];
+  const boxedChildren = originalChildren
+    .map((child, index) => ({
+      index,
+      child: result[index],
+      original: resolveBox(child, values, traces) ?? resolveBox(children[index], values, traces),
+    }))
+    .filter((entry): entry is { index: number; child: DiagramElement; original: BoxMetrics } =>
+      entry.original !== null && isStackReflowCandidate(entry.child, values, traces));
+
+  const tracks: Array<Array<{ index: number; original: BoxMetrics }>> = [];
+  for (const entry of boxedChildren.sort((a, b) => a.original.x - b.original.x || a.original.y - b.original.y)) {
+    const existing = tracks.find((track) => sharesVerticalTrack(track[0].original, entry.original));
+    if (existing) {
+      existing.push(entry);
+    } else {
+      tracks.push([entry]);
+    }
+  }
+
+  for (const track of tracks) {
+    if (track.length < 2) continue;
+    const ordered = [...track].sort((a, b) => a.original.y - b.original.y || a.original.x - b.original.x);
+    let previous = ordered[0];
+    for (let index = 1; index < ordered.length; index += 1) {
+      const current = ordered[index];
+      const previousBox = resolveBox(result[previous.index], values, traces);
+      const currentBox = resolveBox(result[current.index], values, traces);
+      if (!previousBox || !currentBox) {
+        previous = current;
+        continue;
+      }
+
+      const originalGap = Math.max(12, current.original.y - (previous.original.y + previous.original.height));
+      const minY = previousBox.y + previousBox.height + originalGap;
+      if (currentBox.y + 0.5 < minY) {
+        result[current.index] = shiftElement(result[current.index], 0, minY - currentBox.y);
+      }
+      previous = current;
+    }
+  }
+
+  return result;
 }
 
 function normalizeSiblingBoxes(
@@ -144,6 +292,7 @@ function resizeContainerToContent(
   const padding = READABILITY_POLICY.panelPaddingMin;
   const headerHeight = Math.max(58, padding + titleSize + (subtitle ? READABILITY_POLICY.bodyTextMin + 10 : 0));
   const childBounds = element.children
+    .filter((child) => isContainerContentChild(child, values, traces))
     .map((child) => resolveBox(child, values, traces))
     .filter((box): box is BoxMetrics => box !== null);
   if (!childBounds.length) return element;
@@ -208,6 +357,16 @@ function setNumberProperty(element: DiagramElement, key: string, value: number):
   };
 }
 
+function setLiteralProperty(element: DiagramElement, key: string, value: string | number | boolean): DiagramElement {
+  return {
+    ...element,
+    properties: {
+      ...element.properties,
+      [key]: { type: 'Literal', value, location: ZERO_LOC },
+    },
+  };
+}
+
 function setLiteral(properties: Record<string, any>, key: string, value: string | number | boolean): void {
   properties[key] = { type: 'Literal', value, location: ZERO_LOC };
 }
@@ -238,16 +397,35 @@ function readStringProperty(
   return typeof value === 'string' ? value : fallback;
 }
 
+function readBooleanProperty(
+  expr: any,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+  fallback: boolean,
+): boolean {
+  if (!expr) return fallback;
+  const value = resolveValue(expr, values, traces);
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 function resolveBox(
   element: DiagramElement,
   values: Record<string, GSValue>,
   traces: Map<string, Trace>,
 ): BoxMetrics | null {
-  const x = readNumberProperty(element.properties.x, values, traces, 0);
-  const y = readNumberProperty(element.properties.y, values, traces, 0);
+  let x = readNumberProperty(element.properties.x, values, traces, 0);
+  let y = readNumberProperty(element.properties.y, values, traces, 0);
   const width = readNumberProperty(element.properties.w, values, traces, 0);
   const height = readNumberProperty(element.properties.h, values, traces, 0);
   if (width <= 0 || height <= 0) return null;
+  if (element.type === 'text') {
+    const anchor = readStringProperty(element.properties.anchor, values, traces, 'start');
+    if (anchor === 'middle') x -= width / 2;
+    else if (anchor === 'end') x -= width;
+  } else if (element.type === 'formula') {
+    x -= width / 2;
+    y -= readNumberProperty(element.properties.ascent, values, traces, height * 0.8);
+  }
   return { x, y, width, height };
 }
 
@@ -260,6 +438,62 @@ interface BoxMetrics {
   y: number;
   width: number;
   height: number;
+}
+
+function sharesVerticalTrack(a: BoxMetrics, b: BoxMetrics): boolean {
+  const overlap = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+  const minWidth = Math.max(1, Math.min(a.width, b.width));
+  const centerDelta = Math.abs((a.x + a.width / 2) - (b.x + b.width / 2));
+  return overlap >= minWidth * 0.3 || Math.abs(a.x - b.x) <= 48 || centerDelta <= 72;
+}
+
+function isReadabilityMeasuredChild(
+  element: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+): boolean {
+  if (hasGraphCompiledMarker(element, values, traces)) return false;
+  if (readBooleanProperty(element.properties.validation_ignore, values, traces, false)) return false;
+  if (readBooleanProperty(element.properties.allow_overlap, values, traces, false)) return false;
+  return element.type === 'text' || element.type === 'formula';
+}
+
+function isStackReflowCandidate(
+  element: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+): boolean {
+  if (hasGraphCompiledMarker(element, values, traces)) return false;
+  if (readBooleanProperty(element.properties.validation_ignore, values, traces, false)) return false;
+  if (readBooleanProperty(element.properties.allow_overlap, values, traces, false)) return false;
+  return element.type === 'text'
+    || element.type === 'formula'
+    || element.type === 'image'
+    || element.type === 'embed'
+    || isBoxLike(element);
+}
+
+function isContainerContentChild(
+  element: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+): boolean {
+  if (hasGraphCompiledMarker(element, values, traces)) return false;
+  if (readBooleanProperty(element.properties.validation_ignore, values, traces, false)) return false;
+  if (readBooleanProperty(element.properties.allow_overlap, values, traces, false)) return false;
+  return element.type === 'text'
+    || element.type === 'formula'
+    || element.type === 'image'
+    || element.type === 'embed'
+    || isBoxLike(element);
+}
+
+function hasGraphCompiledMarker(
+  element: DiagramElement,
+  values: Record<string, GSValue>,
+  traces: Map<string, Trace>,
+): boolean {
+  return readBooleanProperty(element.properties.compiled_from_graph, values, traces, false);
 }
 
 function hasInterveningContent(

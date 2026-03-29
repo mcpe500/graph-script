@@ -19,6 +19,7 @@ import {
   detectMisalignedSiblingIssues,
 } from './issues-readability';
 import { detectMathFallbackIssues } from './issues-math-fallback';
+import { detectPlainMathTextIssues } from './issues-plain-math';
 
 export {
   detectOverflowIssues,
@@ -31,6 +32,7 @@ export {
   detectExcessiveEmptySpaceIssues,
   detectMisalignedSiblingIssues,
   detectMathFallbackIssues,
+  detectPlainMathTextIssues,
 };
 
 /**
@@ -50,6 +52,7 @@ export function collectValidationIssues(
   issues.push(...detectExcessiveEmptySpaceIssues(snapshot.elements, values, traces));
   issues.push(...detectMisalignedSiblingIssues(snapshot.elements, values, traces));
   issues.push(...detectMathFallbackIssues(snapshot.elements, values, traces));
+  issues.push(...detectPlainMathTextIssues(snapshot.elements, values, traces));
   issues.push(...detectSemanticReadabilityIssues(snapshot, values, traces));
   return dedupeIssues(issues);
 }

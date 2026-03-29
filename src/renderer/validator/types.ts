@@ -48,7 +48,8 @@ export interface ValidationIssue {
     | 'connector_label_crowding'
     | 'embed_too_small'
     | 'excessive_empty_space'
-    | 'misaligned_siblings';
+    | 'misaligned_siblings'
+    | 'plain_math_text';
   element1: { id: string; type: string };
   element2: { id: string; type: string };
   overlapArea: number;

@@ -112,7 +112,7 @@ export async function buildValidationSnapshot(
     const readabilityMode = readReadabilityMode(diagram.properties.readability_mode, values, traces, 'auto');
     const compiled = await compileSemanticDiagram(diagram.elements || [], values, traces, width, height, { fontFamily, readabilityMode });
     const elements = !compiled.hasSemantic
-      ? normalizeDiagramElementsForReadability(compiled.elements, values, traces, { mode: readabilityMode })
+      ? await normalizeDiagramElementsForReadability(compiled.elements, values, traces, { mode: readabilityMode, fontFamily })
       : compiled.elements;
     return {
       elements,

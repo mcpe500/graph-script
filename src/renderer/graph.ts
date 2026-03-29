@@ -127,6 +127,7 @@ export function compileGraphElement(
 
   const nodeMap = new Map(positionedNodes.map((node) => [node.id, node]));
   const elements: DiagramElement[] = [];
+  const graphMarker = { compiled_from_graph: true, graph_source: graph.name };
 
   for (const edge of edgeSpecs) {
     const fromNode = nodeMap.get(edge.from);
@@ -153,6 +154,7 @@ export function compileGraphElement(
       stroke: edge.stroke,
       strokeWidth: edge.strokeWidth,
       dash: edge.dash,
+      ...graphMarker,
     }));
   }
 
@@ -166,6 +168,7 @@ export function compileGraphElement(
       fill: node.fill,
       stroke: node.stroke,
       strokeWidth: node.strokeWidth,
+      ...graphMarker,
     }));
   }
 
@@ -185,6 +188,7 @@ export function compileGraphElement(
       anchor: 'middle',
       allow_overlap: true,
       validation_ignore: true,
+      ...graphMarker,
     }));
   }
 
