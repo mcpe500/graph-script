@@ -2,16 +2,22 @@ import { DiagramElement } from '../../ast/types';
 import { round } from '../common';
 import { createChildRenderContext, createElementRenderState, DiagramRenderContext, ElementRenderState } from './render-state';
 import {
+  renderActor,
+  renderAssociation,
   renderBadgeOrCallout,
   renderChecker,
   renderCircle,
   renderEllipse,
+  renderExtend,
   renderFormula,
   renderGrid,
   renderImage,
+  renderInclude,
   renderLineOrArrow,
   renderPanelOrBox,
+  renderSystemBoundary,
   renderText,
+  renderUseCase,
 } from './render-shapes';
 import { renderEmbedElement, renderFallback } from './render-embedded';
 
@@ -65,6 +71,19 @@ async function renderElementBody(element: DiagramElement, state: ElementRenderSt
       return renderLineOrArrow(state);
     case 'embed':
       return renderEmbedElement(state);
+    // Use Case Diagram Elements
+    case 'actor':
+      return renderActor(state);
+    case 'usecase':
+      return renderUseCase(state);
+    case 'system':
+      return renderSystemBoundary(state);
+    case 'association':
+      return renderAssociation(state);
+    case 'include':
+      return renderInclude(state);
+    case 'extend':
+      return renderExtend(state);
     default:
       return renderFallback(state);
   }

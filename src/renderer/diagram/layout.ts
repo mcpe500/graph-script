@@ -16,6 +16,7 @@ import {
   readSpacingDefaults,
 } from '../readability-policy';
 import { normalizeDiagramElementsForReadability } from './readability';
+import { isUseCaseDiagram, layoutUseCaseDiagram } from './usecase-layout';
 
 const ZERO_LOC = {
   start: { line: 0, column: 0, offset: 0 },
@@ -78,6 +79,25 @@ export async function prepareDiagramLayout(
       layoutMode: 'dynamic',
       sizeMode,
       hasSemantic: true,
+    };
+  }
+
+  // Check if this is a Use Case diagram and apply specialized layout
+  if (isUseCaseDiagram(decl.elements)) {
+    const useCaseLayout = layoutUseCaseDiagram(
+      decl.elements,
+      values,
+      traces,
+      hasExplicitWidth ? requestedWidth : defaults.width,
+      hasExplicitHeight ? requestedHeight : defaults.height,
+    );
+    return {
+      elements: useCaseLayout.elements,
+      width: resolveRendererExtent(hasExplicitWidth, requestedWidth, defaults.width, sizeMode, useCaseLayout.width, defaults.minWidth),
+      height: resolveRendererExtent(hasExplicitHeight, requestedHeight, defaults.height, sizeMode, useCaseLayout.height, defaults.minHeight),
+      layoutMode: 'dynamic',
+      sizeMode,
+      hasSemantic: false,
     };
   }
 

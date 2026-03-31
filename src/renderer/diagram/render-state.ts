@@ -91,12 +91,16 @@ export function createElementRenderState(
 ): ElementRenderState {
   const x = ctx.offsetX + readNumber(resolveValue(element.properties.x, ctx.values, ctx.traces), 0);
   const y = ctx.offsetY + readNumber(resolveValue(element.properties.y, ctx.values, ctx.traces), 0);
-  const w = readNumber(resolveValue(element.properties.w, ctx.values, ctx.traces), 200);
-  const h = readNumber(resolveValue(element.properties.h, ctx.values, ctx.traces), 120);
-  const defaultStroke = ['line', 'arrow'].includes(element.type) ? '#64748b' : '#cbd5e1';
+  
+  // Default dimensions based on element type
+  const defaultDimensions = getDefaultDimensions(element.type);
+  const w = readNumber(resolveValue(element.properties.w, ctx.values, ctx.traces), defaultDimensions.w);
+  const h = readNumber(resolveValue(element.properties.h, ctx.values, ctx.traces), defaultDimensions.h);
+  
+  const defaultStroke = getDefaultStroke(element.type);
   const fill = readString(resolveValue(element.properties.fill, ctx.values, ctx.traces), '#ffffff');
   const stroke = readString(resolveValue(element.properties.stroke, ctx.values, ctx.traces), defaultStroke);
-  const labelFallback = ['line', 'arrow', 'image'].includes(element.type) ? '' : element.name;
+  const labelFallback = ['line', 'arrow', 'image', 'association', 'include', 'extend'].includes(element.type) ? '' : element.name;
   const label = readString(resolveValue(element.properties.label, ctx.values, ctx.traces), labelFallback);
   const subtitle = readString(resolveValue(element.properties.subtitle, ctx.values, ctx.traces), '');
   const color = readString(resolveValue(element.properties.color, ctx.values, ctx.traces), '#0f172a');
@@ -104,13 +108,17 @@ export function createElementRenderState(
   const textSize = readNumber(resolveValue(element.properties.size, ctx.values, ctx.traces), 16);
   const weight = readString(resolveValue(element.properties.weight, ctx.values, ctx.traces), '600');
   const dash = readString(resolveValue(element.properties.dash, ctx.values, ctx.traces), '');
-  const strokeWidth = readNumber(resolveValue(element.properties.strokeWidth, ctx.values, ctx.traces), ['line', 'arrow'].includes(element.type) ? 3 : 1.5);
+  const defaultStrokeWidth = getDefaultStrokeWidth(element.type);
+  const strokeWidth = readNumber(resolveValue(element.properties.strokeWidth, ctx.values, ctx.traces), defaultStrokeWidth);
   const fillOpacity = readNumber(resolveValue(element.properties.fillOpacity, ctx.values, ctx.traces), 1);
   const strokeOpacity = readNumber(resolveValue(element.properties.strokeOpacity, ctx.values, ctx.traces), 1);
   const gridRows = Math.max(1, readNumber(resolveValue(element.properties.rows, ctx.values, ctx.traces), 4));
   const gridCols = Math.max(1, readNumber(resolveValue(element.properties.cols, ctx.values, ctx.traces), 4));
   const shadow = readBoolean(resolveValue(element.properties.shadow, ctx.values, ctx.traces), ['panel', 'box', 'callout', 'badge'].includes(element.type));
-  const latexMode = readLatexMode(resolveValue(element.properties.latex, ctx.values, ctx.traces), 'auto');
+  // Use case diagram elements should default to 'off' to prevent <<stereotype>> from being rendered as LaTeX
+  const useCaseTypes = ['actor', 'usecase', 'system', 'association', 'include', 'extend'];
+  const defaultLatexMode = useCaseTypes.includes(element.type) ? 'off' : 'auto';
+  const latexMode = readLatexMode(resolveValue(element.properties.latex, ctx.values, ctx.traces), defaultLatexMode);
   const fontFamily = readString(resolveValue(element.properties.font_family, ctx.values, ctx.traces), ctx.defaultFontFamily);
   const dashAttr = dash ? ` stroke-dasharray="${escapeXml(dash)}"` : '';
   const fillOpacityAttr = fillOpacity < 1 ? ` fill-opacity="${round(fillOpacity, 3)}"` : '';
@@ -149,4 +157,56 @@ export function createElementRenderState(
     fillOpacityAttr,
     strokeOpacityAttr,
   };
+}
+
+function getDefaultDimensions(type: string): { w: number; h: number } {
+  switch (type) {
+    case 'actor':
+      return { w: 80, h: 120 };
+    case 'usecase':
+      return { w: 160, h: 60 };
+    case 'system':
+      return { w: 400, h: 500 };
+    case 'association':
+    case 'include':
+    case 'extend':
+      return { w: 100, h: 100 };
+    default:
+      return { w: 200, h: 120 };
+  }
+}
+
+function getDefaultStroke(type: string): string {
+  switch (type) {
+    case 'line':
+    case 'arrow':
+      return '#64748b';
+    case 'actor':
+    case 'usecase':
+    case 'system':
+    case 'association':
+    case 'include':
+    case 'extend':
+      return '#1e293b';
+    default:
+      return '#cbd5e1';
+  }
+}
+
+function getDefaultStrokeWidth(type: string): number {
+  switch (type) {
+    case 'line':
+    case 'arrow':
+      return 3;
+    case 'actor':
+      return 2;
+    case 'usecase':
+    case 'system':
+    case 'association':
+    case 'include':
+    case 'extend':
+      return 1.5;
+    default:
+      return 1.5;
+  }
 }

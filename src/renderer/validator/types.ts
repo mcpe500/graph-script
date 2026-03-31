@@ -144,7 +144,7 @@ export const SEMANTIC_ROLE_MIN_SIZE: Record<string, number> = {
   display_formula: FORMULA_TEXT_MIN,
 };
 
-export const OVERLAP_TYPES_ALLOWED = new Set(['line', 'arrow', 'connector', 'embed']);
+export const OVERLAP_TYPES_ALLOWED = new Set(['line', 'arrow', 'connector', 'embed', 'association', 'include', 'extend', 'system']);
 
 export const VALIDATABLE_DECLARATION_TYPES = new Set([
   'DiagramDeclaration',
