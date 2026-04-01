@@ -7,6 +7,7 @@
 import { DiagramElement, Expression } from '../../ast/types';
 import { GSValue, Trace } from '../../runtime/values';
 import { readNumber, readString, resolveValue } from '../common';
+import { USE_CASE_ELEMENT_TYPES } from '../validator/types';
 import {
   computeUseCaseRelationLabelPlacements,
   UseCaseLabelBlocker,
@@ -80,8 +81,7 @@ interface LayoutResult {
  * Check if the diagram contains use case elements
  */
 export function isUseCaseDiagram(elements: DiagramElement[]): boolean {
-  const useCaseTypes = new Set(['actor', 'usecase', 'system', 'association', 'include', 'extend']);
-  return elements.some((el) => useCaseTypes.has(el.type));
+  return elements.some((el) => USE_CASE_ELEMENT_TYPES.has(el.type));
 }
 
 /**

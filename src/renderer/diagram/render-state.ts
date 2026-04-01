@@ -2,6 +2,7 @@ import { DiagramElement } from '../../ast/types';
 import { GSValue, Trace } from '../../runtime/values';
 import { escapeXml, readBoolean, readNumber, readString, resolveValue, round } from '../common';
 import { readLatexMode, type LatexMode } from '../latex';
+import { USE_CASE_ELEMENT_TYPES } from '../validator/types';
 import { RenderEmbed } from './render-types';
 
 export interface DiagramRenderContext {
@@ -116,8 +117,7 @@ export function createElementRenderState(
   const gridCols = Math.max(1, readNumber(resolveValue(element.properties.cols, ctx.values, ctx.traces), 4));
   const shadow = readBoolean(resolveValue(element.properties.shadow, ctx.values, ctx.traces), ['panel', 'box', 'callout', 'badge'].includes(element.type));
   // Use case diagram elements should default to 'off' to prevent <<stereotype>> from being rendered as LaTeX
-  const useCaseTypes = ['actor', 'usecase', 'system', 'association', 'include', 'extend'];
-  const defaultLatexMode = useCaseTypes.includes(element.type) ? 'off' : 'auto';
+  const defaultLatexMode = USE_CASE_ELEMENT_TYPES.has(element.type) ? 'off' : 'auto';
   const latexMode = readLatexMode(resolveValue(element.properties.latex, ctx.values, ctx.traces), defaultLatexMode);
   const fontFamily = readString(resolveValue(element.properties.font_family, ctx.values, ctx.traces), ctx.defaultFontFamily);
   const dashAttr = dash ? ` stroke-dasharray="${escapeXml(dash)}"` : '';
