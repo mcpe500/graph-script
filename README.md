@@ -7,10 +7,13 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green.svg)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Development Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)](#development-status)
+
+> **⚠️ Project Status: In Development (v0.1)** - APIs and features are under active development. Breaking changes may occur.
 
 *A unified DSL for computation, explanation, and rendering*
 
-[Getting Started](#getting-started) • [Examples](#examples) • [Documentation](docs.md) • [Contributing](#contributing)
+[Getting Started](#getting-started) • [Examples](#examples) • [Documentation](docs.md) • [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -593,10 +596,15 @@ graph-script/
 │   ├── ast/
 │   │   └── types.ts           # AST type definitions
 │   ├── parser/
-│   │   ├── index.ts           # Parser main
-│   │   ├── declarations.ts    # Declaration parsing
-│   │   ├── expressions.ts     # Expression parsing
-│   │   └── statements.ts      # Statement parsing
+│   │   ├── index.ts                    # Parser main (orchestrator)
+│   │   ├── expressions.ts              # Expression parsing
+│   │   ├── declaration-parser.ts       # Declaration parser orchestrator
+│   │   ├── declaration-parser-basic.ts # Core declarations
+│   │   ├── declaration-parser-visual.ts # Chart/flow/diagram declarations
+│   │   ├── declaration-parser-domain.ts # ERD/infra/page/render declarations
+│   │   ├── statement-parser.ts         # Statement suites for algo/func
+│   │   ├── line-utils.ts               # Shared line-based parser helpers
+│   │   └── declaration-ops.ts          # Parser module contracts
 │   ├── runtime/
 │   │   ├── index.ts           # Evaluator
 │   │   ├── scope.ts           # Variable scope
@@ -606,9 +614,14 @@ graph-script/
 │   │   ├── index.ts           # Main renderer
 │   │   ├── common.ts          # Shared utilities
 │   │   ├── chart.ts           # Chart renderer
-│   │   ├── flow.ts            # Flowchart renderer
+│   │   ├── flow.ts            # Flow renderer barrel
+│   │   ├── flow-layout.ts     # Flow layout orchestrator
+│   │   ├── flow-layout-*.ts   # Flow layout modules (options/measure/place/routing/bounds/graph)
+│   │   ├── flow-render.ts     # Flow SVG renderer
 │   │   ├── diagram.ts         # Diagram renderer
-│   │   ├── diagram-semantic.ts # Semantic layout
+│   │   ├── diagram/           # Diagram renderer modules (state/tree/shapes/embed)
+│   │   ├── diagram-semantic.ts # Semantic layout barrel
+│   │   ├── diagram-semantic/   # Semantic layout modules (layout/connectors/helpers/types)
 │   │   ├── table.ts           # Table renderer
 │   │   ├── plot3d.ts          # 3D plot renderer
 │   │   ├── scene3d.ts         # 3D scene renderer
@@ -616,7 +629,7 @@ graph-script/
 │   │   ├── infra.ts           # Infra renderer
 │   │   ├── page.ts            # Page renderer
 │   │   ├── pseudo.ts          # Pseudocode renderer
-│   │   └── validator.ts       # Auto-checking validator (planned)
+│   │   └── validator/         # Auto-checking validator modules
 │   └── tokenizer/
 │       ├── index.ts           # Tokenizer
 │       └── types.ts           # Token types
@@ -814,37 +827,14 @@ npm test -- --watch
 2. Export render function
 3. Add case to `src/renderer/index.ts`
 4. Add type to `src/ast/types.ts`
-5. Update parser in `src/parser/declarations.ts`
+5. Update parser modules in `src/parser/declaration-parser-*.ts`
 6. Add tests in `tests/renderer/`
 
 ---
 
 ## Contributing
 
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Code Style
-
-- Use 2-space indentation
-- Follow TypeScript best practices
-- Add JSDoc comments for public APIs
-- Write tests for new features
-
-### Areas for Contribution
-
-- [ ] Additional chart types (box plot, violin, etc.)
-- [ ] More infrastructure providers (GCP, Azure)
-- [ ] Interactive HTML renderer
-- [ ] VS Code extension
-- [ ] Language Server Protocol (LSP)
-- [ ] Additional export formats (PDF, GLB)
-- [ ] Performance optimizations
+We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
 ---
 
@@ -893,6 +883,36 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+## Development Status
+
+| Komponen | Status |
+|----------|--------|
+| Core Syntax & Parser | ✅ Selesai |
+| Data & Functions | ✅ Selesai |
+| Chart Renderer | ✅ Selesai |
+| Flow Renderer | ✅ Selesai |
+| Pseudocode Blocks | ✅ Selesai |
+| Algorithm Traces | ✅ Selesai |
+| Table Renderer | ✅ Selesai |
+| Diagram Renderer | ✅ Selesai |
+| Auto-Checking Validator | 🔄 In Progress |
+| ERD Renderer | 📋 Planned |
+| Infra Diagrams | 📋 Planned |
+| 3D Renderer | 📋 Planned |
+| Interactive HTML | 📋 Planned |
+
+---
+
+## Credits
+
+**Creator & Lead Developer:**
+- [mcpe500](https://github.com/mcpe500)
+
+**Contributors:**
+- Contributors list is updated regularly. See [Contributors](https://github.com/mcpe500/graph-script/graphs/contributors) for the full list.
+
+---
+
 ## Acknowledgments
 
 - Inspired by domain-specific languages for visualization
@@ -905,6 +925,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **[GraphScript](https://github.com/mcpe500/graph-script)** - *Composable Visual Scripting for Charts, Diagrams, Algorithms, and 3D*
 
-Made with ❤️ by the GraphScript Team
+Made with ❤️ by [mcpe500](https://github.com/mcpe500) and [Contributors](https://github.com/mcpe500/graph-script/graphs/contributors)
 
 </div>
