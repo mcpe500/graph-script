@@ -2,8 +2,10 @@ import { FlowDeclaration } from '../ast/types';
 import { ReadabilityMode, RendererLayoutMode, RendererSizeMode } from './readability-policy';
 
 export type FlowDirection = 'top_down' | 'left_right';
-export type LayoutMode = 'auto' | 'single_row' | 'snake' | 'vertical';
+export type LayoutMode = 'auto' | 'single_row' | 'snake' | 'vertical' | 'algorithmic';
 export type FitMode = 'readable' | 'compact';
+export type FlowTextMode = 'plain' | 'formula';
+export type FlowEdgeKind = 'normal' | 'branch' | 'back' | 'join';
 
 export interface FlowLayout {
   nodes: LayoutNode[];
@@ -27,15 +29,18 @@ export interface LayoutNode {
   width: number;
   height: number;
   lines: string[];
+  lineModes: FlowTextMode[];
   fontSize: number;
   lineHeight: number;
-  textMode: 'plain' | 'formula';
 }
 
 export interface LayoutEdge {
   from: string;
   to: string;
   label?: string;
+  labelX?: number;
+  labelY?: number;
+  kind?: FlowEdgeKind;
   points: { x: number; y: number }[];
 }
 
@@ -43,9 +48,9 @@ export interface NodeBox {
   width: number;
   height: number;
   lines: string[];
+  lineModes: FlowTextMode[];
   fontSize: number;
   lineHeight: number;
-  textMode: 'plain' | 'formula';
   label: string;
   nodeType?: string;
 }

@@ -86,4 +86,45 @@ describe('Parser', () => {
       'group',
     ]);
   });
+
+  test('parses non-semantic diagram container children', () => {
+    const parser = new Parser();
+    const program = parser.parse(`diagram "Container":
+  box outer x=40 y=60 w=320 h=180 label="":
+    text title x=24 y=24 w=220 h=30 value="Nested title" size=18
+    circle node x=36 y=80 w=40 h=40 label="A"
+`);
+    const diagram = program.body[0] as any;
+    expect(diagram.type).toBe('DiagramDeclaration');
+    expect(diagram.elements).toHaveLength(1);
+    expect(diagram.elements[0].type).toBe('box');
+    expect(diagram.elements[0].children.map((element: any) => element.type)).toEqual([
+      'text',
+      'circle',
+    ]);
+  });
+
+  test('parses graph with node and edge children inside diagram containers', () => {
+    const parser = new Parser();
+    const program = parser.parse(`diagram "Graph":
+  panel host x=40 y=50 w=360 h=240 label="":
+    graph k3 x=42 y=54 w=220 h=160 layout="circle":
+      node a label="A"
+      node b label="B"
+      node c label="C"
+      edge ab from="a" to="b"
+      edge bc from="b" to="c"
+`);
+    const diagram = program.body[0] as any;
+    expect(diagram.type).toBe('DiagramDeclaration');
+    expect(diagram.elements[0].type).toBe('panel');
+    expect(diagram.elements[0].children[0].type).toBe('graph');
+    expect(diagram.elements[0].children[0].children.map((element: any) => element.type)).toEqual([
+      'node',
+      'node',
+      'node',
+      'edge',
+      'edge',
+    ]);
+  });
 });

@@ -3,6 +3,8 @@ import {
   DEFAULT_TARGET_HEIGHT,
   DEFAULT_TARGET_WIDTH,
   FlowDirection,
+  FlowEdgeDecl,
+  FlowNodeDecl,
   LayoutMode,
   ResolvedFlowOptions,
 } from './flow-types';
@@ -59,9 +61,17 @@ export function resolveFlowOptions(flow: FlowDeclaration): ResolvedFlowOptions {
   };
 }
 
-export function candidateModes(options: ResolvedFlowOptions, nodeCount: number): Exclude<LayoutMode, 'auto'>[] {
+export function candidateModes(
+  options: ResolvedFlowOptions,
+  nodes: FlowNodeDecl[],
+  edges: FlowEdgeDecl[],
+): Exclude<LayoutMode, 'auto'>[] {
   if (options.layoutMode !== 'auto') return [options.layoutMode];
+  if (options.direction === 'top_down' && shouldPreferAlgorithmic(nodes, edges)) {
+    return ['algorithmic', 'vertical', 'snake', 'single_row'];
+  }
   if (options.direction === 'top_down') return ['vertical', 'snake', 'single_row'];
+  const nodeCount = nodes.length;
   if (nodeCount >= 5 && nodeCount <= 8) return ['snake', 'single_row', 'vertical'];
   if (nodeCount <= 4) return ['single_row', 'snake', 'vertical'];
   return ['snake', 'vertical', 'single_row'];
@@ -75,8 +85,38 @@ function resolveDirection(flow: FlowDeclaration): FlowDirection {
 }
 
 function normalizeLayoutMode(value: string): LayoutMode {
-  if (value === 'single_row' || value === 'snake' || value === 'vertical') return value;
+  if (value === 'single_row' || value === 'snake' || value === 'vertical' || value === 'algorithmic') return value;
   return 'auto';
+}
+
+function shouldPreferAlgorithmic(nodes: FlowNodeDecl[], edges: FlowEdgeDecl[]): boolean {
+  const hasDecision = nodes.some((node) => (node.nodeType ?? '').toLowerCase() === 'decision');
+  if (!hasDecision) return false;
+  const adjacency = new Map<string, string[]>();
+  nodes.forEach((node) => adjacency.set(node.id, []));
+  edges.forEach((edge) => adjacency.get(edge.from)?.push(edge.to));
+
+  const visited = new Set<string>();
+  const stack = new Set<string>();
+  let hasBackEdge = false;
+
+  const visit = (nodeId: string) => {
+    if (hasBackEdge) return;
+    visited.add(nodeId);
+    stack.add(nodeId);
+    for (const next of adjacency.get(nodeId) ?? []) {
+      if (!visited.has(next)) visit(next);
+      else if (stack.has(next)) hasBackEdge = true;
+      if (hasBackEdge) break;
+    }
+    stack.delete(nodeId);
+  };
+
+  nodes.forEach((node) => {
+    if (!visited.has(node.id)) visit(node.id);
+  });
+
+  return hasBackEdge;
 }
 
 function readFlowString(expr: Expression | undefined, fallback: string): string {

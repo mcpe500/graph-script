@@ -28,6 +28,15 @@ export function escapeXml(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
+export function escapeXmlText(value: string): string {
+  return Array.from(escapeXml(value))
+    .map((char) => {
+      const codePoint = char.codePointAt(0) ?? 0;
+      return codePoint > 127 ? `&#${codePoint};` : char;
+    })
+    .join('');
+}
+
 export function round(value: number, digits = 1): number {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
@@ -213,5 +222,5 @@ export function renderFormulaText(
   const color = options.color ?? '#0f172a';
   const anchor = options.anchor ?? 'middle';
   const weight = options.weight ?? '500';
-  return `<text x="${round(x)}" y="${round(y)}" text-anchor="${anchor}" font-size="${round(fontSize)}" font-style="italic" font-weight="${weight}" fill="${color}">${escapeXml(normalizeFormulaText(value))}</text>`;
+  return `<text x="${round(x)}" y="${round(y)}" text-anchor="${anchor}" font-size="${round(fontSize)}" font-style="italic" font-weight="${weight}" fill="${color}">${escapeXmlText(normalizeFormulaText(value))}</text>`;
 }

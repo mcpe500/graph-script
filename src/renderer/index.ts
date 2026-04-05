@@ -174,13 +174,13 @@ export class Renderer {
   }
 
   private extractSvgWidth(svg: string): number {
-    const match = svg.match(/width="(\d+)"/);
-    return match ? parseInt(match[1], 10) : 800;
+    const match = svg.match(/<svg\b[^>]*\bwidth="([0-9.]+)"/i);
+    return match ? Math.max(1, Math.round(Number(match[1]) || 0)) : 800;
   }
 
   private extractSvgHeight(svg: string): number {
-    const match = svg.match(/height="(\d+)"/);
-    return match ? parseInt(match[1], 10) : 600;
+    const match = svg.match(/<svg\b[^>]*\bheight="([0-9.]+)"/i);
+    return match ? Math.max(1, Math.round(Number(match[1]) || 0)) : 600;
   }
 }
 

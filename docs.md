@@ -348,15 +348,21 @@ chart "Measurement Probabilities":
 - **Node type umum**: `start`, `end`, `process`, `decision`, `data`
 - **Properti layout penting**:
   - `direction = top_down | left_right`
-  - `layout_mode = auto | single_row | snake | vertical`
+  - `layout_mode = dynamic | manual`
+  - `flow_layout = auto | single_row | snake | vertical | algorithmic`
   - `fit = readable | compact`
   - `target_width`, `target_height`
   - `preferred_font_size`, `min_font_size`
+- **Catatan perilaku**:
+  - `flow_layout = algorithmic` cocok untuk flow algoritma dengan decision + back-edge.
+  - `fit = readable` mencoba menjaga figure tetap nyaman dibaca sebagai satu gambar dokumen, bukan hanya membiarkan canvas tumbuh vertikal tanpa batas.
+  - Label flow dianggap plain text secara default; gunakan `$...$` atau `\\(...\\)` hanya untuk baris math yang memang harus dirender sebagai formula.
 
 ```graphscript
 flow "Decision Process":
   direction = left_right
-  layout_mode = auto
+  layout_mode = dynamic
+  flow_layout = auto
   fit = compact
 
   node start type=start label="Start"

@@ -8,6 +8,7 @@ import {
 } from './flow-types';
 import { candidateModes, resolveFlowOptions } from './flow-layout-options';
 import { createNode, measureNodes } from './flow-layout-measure';
+import { buildAlgorithmicCandidate } from './flow-layout-algorithmic';
 import { placeNodes } from './flow-layout-place';
 import { buildEdges } from './flow-layout-routing';
 import { boundsFromNodes, boundsFromNodesAndEdges } from './flow-layout-bounds';
@@ -42,9 +43,13 @@ export function layoutFlow(flow: FlowDeclaration) {
   if (options.placementMode === 'manual') {
     return buildManualFlowLayout(orderedNodeIds, nodeById, edges, options);
   }
-  const candidates = candidateModes(options, orderedNodeIds.length).map((mode) =>
-    buildCandidate(mode, orderedNodeIds, nodeById, edges, options),
-  );
+  const requestedModes = candidateModes(options, nodes, edges);
+  const candidates = requestedModes
+    .map((mode) => buildCandidate(mode, orderedNodeIds, nodeById, edges, options))
+    .filter((candidate): candidate is LayoutCandidate => !!candidate);
+  if (!candidates.length) {
+    candidates.push(buildGenericCandidate('vertical', orderedNodeIds, nodeById, edges, options));
+  }
 
   const chosen = chooseCandidate(candidates);
   return {
@@ -63,6 +68,19 @@ export function layoutFlow(flow: FlowDeclaration) {
 
 function buildCandidate(
   mode: Exclude<ResolvedFlowOptions['layoutMode'], 'auto'>,
+  orderedNodeIds: string[],
+  nodeById: Map<string, FlowDeclaration['nodes'][number]>,
+  edges: FlowDeclaration['edges'],
+  options: ResolvedFlowOptions,
+): LayoutCandidate | null {
+  if (mode === 'algorithmic') {
+    return buildAlgorithmicCandidate(orderedNodeIds, nodeById, edges, options);
+  }
+  return buildGenericCandidate(mode, orderedNodeIds, nodeById, edges, options);
+}
+
+function buildGenericCandidate(
+  mode: Exclude<ResolvedFlowOptions['layoutMode'], 'auto' | 'algorithmic'>,
   orderedNodeIds: string[],
   nodeById: Map<string, FlowDeclaration['nodes'][number]>,
   edges: FlowDeclaration['edges'],

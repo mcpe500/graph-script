@@ -15,7 +15,7 @@ import { readNumber, resolveValue } from '../common';
 import { buildChartSeries, extractChartConfig } from '../chart';
 import { prepareDiagramLayout } from '../diagram';
 import { planErdLayout } from '../erd';
-import { layoutFlow, LayoutNode } from '../flow';
+import { layoutFlow, LayoutNode, resolveFlowCanvasFrame } from '../flow';
 import { planInfraLayout } from '../infra';
 import { buildPlot3d } from '../plot3d';
 import { estimateDeclarationCanvasSize, findRenderableTargetDeclaration, planPageLayout } from '../page-layout';
@@ -131,16 +131,17 @@ export async function buildValidationSnapshot(
 
   if (decl.type === 'FlowDeclaration') {
     const layout = layoutFlow(decl as FlowDeclaration);
+    const frame = resolveFlowCanvasFrame(layout, decl.name);
     const boxes = layout.nodes.map((node) => ({
       id: node.id,
       type: 'flow-node',
-      x: node.x - node.width / 2,
-      y: node.y - node.height / 2,
+      x: frame.offsetX + node.x - node.width / 2,
+      y: frame.offsetY + node.y - node.height / 2,
       width: node.width,
       height: node.height,
       allowOverlap: false,
     }));
-    return { elements: [], boxes, decl, canvas: { width: layout.width, height: layout.height } };
+    return { elements: [], boxes, decl, canvas: { width: frame.svgWidth, height: frame.svgHeight } };
   }
 
   if (decl.type === 'PageDeclaration') {

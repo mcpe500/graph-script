@@ -5,17 +5,8 @@ import { FlowLayout, LayoutNode } from './flow-types';
  * SVG rendering for an already-computed flow layout.
  */
 export function renderFlow(layout: FlowLayout, title?: string): string {
-  const titleBlock = title ? 72 : 24;
-  const contentWidth = Math.max(0, layout.maxX - layout.minX);
-  const contentHeight = Math.max(0, layout.maxY - layout.minY);
-  const targetWidth = Math.max(layout.options.targetWidth, contentWidth + 120);
-  const targetHeight = Math.max(layout.options.targetHeight, contentHeight + titleBlock + 90);
-  const svgWidth = Math.max(560, targetWidth);
-  const svgHeight = Math.max(360, targetHeight);
-  const horizontalPadding = Math.max(50, (svgWidth - contentWidth) / 2);
-  const offsetX = horizontalPadding - layout.minX;
-  const verticalSlack = Math.max(24, svgHeight - (contentHeight + titleBlock + 34));
-  const offsetY = titleBlock + verticalSlack / 2 - layout.minY;
+  const frame = resolveFlowCanvasFrame(layout, title);
+  const { svgWidth, svgHeight, offsetX, offsetY } = frame;
 
   let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${round(svgWidth)}" height="${round(svgHeight)}" viewBox="0 0 ${round(svgWidth)} ${round(svgHeight)}">`;
@@ -35,7 +26,9 @@ export function renderFlow(layout: FlowLayout, title?: string): string {
     const polyline = edge.points.map((point) => `${round(point.x)},${round(point.y)}`).join(' ');
     svg += `<polyline points="${polyline}" fill="none" stroke="#475569" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>`;
     if (edge.label) {
-      const mid = edge.points[Math.floor(edge.points.length / 2)];
+      const mid = edge.labelX !== undefined && edge.labelY !== undefined
+        ? { x: edge.labelX, y: edge.labelY }
+        : edge.points[Math.floor(edge.points.length / 2)];
       const chipWidth = Math.max(56, edge.label.length * 8 + 24);
       svg += `<rect x="${round(mid.x - chipWidth / 2)}" y="${round(mid.y - 22)}" width="${round(chipWidth)}" height="24" rx="12" fill="#ffffff" stroke="#cbd5e1"/>`;
       svg += `<text x="${round(mid.x)}" y="${round(mid.y - 7)}" text-anchor="middle" font-size="12" font-weight="700" fill="#475569">${escapeXml(edge.label)}</text>`;
@@ -48,6 +41,27 @@ export function renderFlow(layout: FlowLayout, title?: string): string {
 
   svg += `</g></svg>`;
   return svg;
+}
+
+export function resolveFlowCanvasFrame(layout: FlowLayout, title?: string): {
+  svgWidth: number;
+  svgHeight: number;
+  offsetX: number;
+  offsetY: number;
+  titleBlock: number;
+} {
+  const titleBlock = title ? 72 : 24;
+  const contentWidth = Math.max(0, layout.maxX - layout.minX);
+  const contentHeight = Math.max(0, layout.maxY - layout.minY);
+  const targetWidth = Math.max(layout.options.targetWidth, contentWidth + 120);
+  const targetHeight = Math.max(layout.options.targetHeight, contentHeight + titleBlock + 90);
+  const svgWidth = Math.max(560, targetWidth);
+  const svgHeight = Math.max(360, targetHeight);
+  const horizontalPadding = Math.max(50, (svgWidth - contentWidth) / 2);
+  const offsetX = horizontalPadding - layout.minX;
+  const verticalSlack = Math.max(24, svgHeight - (contentHeight + titleBlock + 34));
+  const offsetY = titleBlock + verticalSlack / 2 - layout.minY;
+  return { svgWidth, svgHeight, offsetX, offsetY, titleBlock };
 }
 
 function renderNode(node: LayoutNode): string {
@@ -84,15 +98,15 @@ function renderNode(node: LayoutNode): string {
 
   node.lines.forEach((line, index) => {
     const lineY = textStart + index * node.lineHeight;
-    if (node.textMode === 'formula') {
+    if (node.lineModes[index] === 'formula') {
       svg += renderFormulaText(line, node.x, lineY, {
         fontSize: node.fontSize,
         color: theme.text,
         anchor: 'middle',
-        weight: '700',
+        weight: '600',
       });
     } else {
-      svg += `<text x="${round(node.x)}" y="${round(lineY)}" text-anchor="middle" font-size="${round(node.fontSize)}" font-weight="700" fill="${theme.text}">${escapeXml(line)}</text>`;
+      svg += `<text x="${round(node.x)}" y="${round(lineY)}" text-anchor="middle" font-size="${round(node.fontSize)}" font-weight="650" fill="${theme.text}">${escapeXml(line)}</text>`;
     }
   });
   svg += `</g>`;
