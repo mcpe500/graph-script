@@ -1,11 +1,24 @@
-import { execFileSync } from 'child_process';
 import { escapeXml, round } from '../common';
 import { DEFAULT_FONT_FAMILY, MathFragment } from './types';
 import { normalizeFormulaForLatex } from './normalize';
 import { EX_RATIO } from './measure';
+import { MathRenderer } from './math-renderer';
+import { NodeMathRenderer } from './math-node';
+import { BrowserMathRenderer } from './math-browser';
 
 const mathCache = new Map<string, Promise<MathFragment>>();
-let mathJaxPromise: Promise<any> | null = null;
+
+let activeMathRenderer: MathRenderer | null = null;
+let fallbackMathRenderer: MathRenderer = new NodeMathRenderer();
+
+export function setMathRenderer(renderer: MathRenderer): void {
+  activeMathRenderer = renderer;
+}
+
+export function getMathRenderer(): MathRenderer {
+  if (activeMathRenderer) return activeMathRenderer;
+  return fallbackMathRenderer;
+}
 
 export function renderPlacedMath(
   fragment: MathFragment,
@@ -32,22 +45,26 @@ export async function renderMathFragment(value: string, display: boolean, fontSi
 
 async function buildMathFragment(value: string, display: boolean, fontSize: number): Promise<MathFragment> {
   let html: string | null = null;
+  const renderer = getMathRenderer();
+
   try {
-    const MathJax = await getMathJaxInProcess();
-    if (MathJax?.tex2svg && MathJax?.startup?.adaptor) {
-      const node = MathJax.tex2svg(value, { display, em: fontSize, ex: fontSize * EX_RATIO });
-      html = MathJax.startup.adaptor.outerHTML(node) as string;
-    }
+    html = renderer.renderToSvgHtml(value, display, fontSize, fontSize * EX_RATIO);
   } catch {
     html = null;
   }
+
   if (!html) {
     try {
-      html = renderMathSvgWithChildProcess(value, display, fontSize);
+      html = await renderer.renderToSvgHtmlAsync(value, display, fontSize, fontSize * EX_RATIO);
     } catch {
-      return buildFallbackFragment(value, fontSize);
+      html = null;
     }
   }
+
+  if (!html) {
+    return buildFallbackFragment(value, fontSize);
+  }
+
   const svgMatch = html.match(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/i);
   if (!svgMatch) return buildFallbackFragment(value, fontSize);
 
@@ -78,31 +95,6 @@ function parseSvgLength(raw: string | undefined, fontSize: number): number {
   return value;
 }
 
-function renderMathSvgWithChildProcess(value: string, display: boolean, fontSize: number): string {
-  const payload = JSON.stringify({ value, display, fontSize, ex: fontSize * EX_RATIO });
-  const script = `
-const payload = JSON.parse(process.env.GRAPHSCRIPT_MATHJAX_PAYLOAD || '{}');
-const mj = require('@mathjax/src/bundle/node-main.cjs');
-globalThis.MathJax = mj;
-(async () => {
-  const ready = await mj.init({ loader: { load: ['input/tex', 'output/svg'] } });
-  const node = ready.tex2svg(payload.value, { display: payload.display, em: payload.fontSize, ex: payload.ex });
-  const html = ready.startup.adaptor.outerHTML(node);
-  process.stdout.write(html);
-})().catch((error) => {
-  process.stderr.write(String(error && error.message ? error.message : error));
-  process.exit(1);
-});
-`;
-
-  return execFileSync(process.execPath, ['-e', script], {
-    cwd: process.cwd(),
-    env: { ...process.env, GRAPHSCRIPT_MATHJAX_PAYLOAD: payload },
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
-
 function buildFallbackFragment(value: string, fontSize: number): MathFragment {
   const width = Math.max(fontSize, value.length * fontSize * 0.64);
   const height = fontSize * 1.3;
@@ -117,15 +109,4 @@ function buildFallbackFragment(value: string, fontSize: number): MathFragment {
     fallback: true,
     normalizedValue: value,
   };
-}
-
-async function getMathJaxInProcess(): Promise<any> {
-  if (!mathJaxPromise) {
-    const mathJax = require('@mathjax/src/bundle/node-main.cjs');
-    (globalThis as any).MathJax = mathJax;
-    mathJaxPromise = mathJax.init({
-      loader: { load: ['input/tex', 'output/svg'] },
-    });
-  }
-  return mathJaxPromise;
 }

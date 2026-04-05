@@ -6,14 +6,15 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-green.svg)](https://nodejs.org/)
+[![Browser](https://img.shields.io/badge/Browser-ESM%20%7C%20UMD-blue.svg)](#browser--frontend)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Development Status](https://img.shields.io/badge/Status-In%20Development-orange.svg)](#development-status)
 
-> **⚠️ Project Status: In Development (v0.1)** - APIs and features are under active development. Breaking changes may occur.
+> **⚠️ Project Status: In Development (v0.2)** - APIs and features are under active development. Breaking changes may occur.
 
 *A unified DSL for computation, explanation, and rendering*
 
-[Getting Started](#getting-started) • [Examples](#examples) • [Documentation](docs.md) • [Contributing](CONTRIBUTING.md)
+[Getting Started](#getting-started) • [Browser / CDN](#browser--frontend) • [CLI Usage](#cli-usage) • [Documentation](docs.md) • [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -25,6 +26,7 @@
 - [Features](#features)
 - [Installation](#installation)
 - [Getting Started](#getting-started)
+- [Browser / Frontend](#browser--frontend)
 - [How to Use Guide](docs.md)
 - [Language Basics](#language-basics)
 - [Core Concepts](#core-concepts)
@@ -97,7 +99,8 @@ flow "Explanation":
 - **Algorithm Tracing**: Execute algorithms and automatically capture step-by-step traces
 - **Auto-Layout**: Intelligent layout engine for flowcharts and diagrams
 - **Semantic Composition**: Embed charts inside flowcharts, algorithms inside explanations
-- **Multi-Format Export**: SVG, PNG, PDF, HTML, JSON
+- **Multi-Format Export**: SVG, PNG, JPG via CLI; SVG in browser
+- **Browser / CDN**: Use directly in HTML like Three.js or D3.js
 - **Auto-Validation**: Detect overlapping elements and readability issues before render
 
 ---
@@ -233,7 +236,126 @@ graphscript render search.gs # Generate chart
 
 ---
 
-## Language Basics
+## Browser / Frontend
+
+GraphScript can be used directly in the browser via CDN or npm, similar to Three.js, D3.js, or Chart.js.
+
+### Via CDN (ESM)
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>GraphScript Demo</title></head>
+<body>
+  <div id="container"></div>
+  <script type="module">
+    import { GraphScript } from 'https://cdn.jsdelivr.net/npm/graphscript/dist/browser/graphscript.esm.js';
+
+    const gs = new GraphScript();
+    const result = await gs.render(`
+      chart temperature
+        title "Monthly Temperature"
+        bar 30, 35, 28, 40, 38
+    `);
+    document.getElementById('container').innerHTML = result[0].svg;
+  </script>
+</body>
+</html>
+```
+
+### Via CDN (UMD / Script Tag)
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphscript/dist/browser/graphscript.min.js"></script>
+<script>
+  var gs = new GraphScript.GraphScript();
+  gs.render('chart test\n  bar 10, 20, 30').then(function(results) {
+    document.getElementById('container').innerHTML = results[0].svg;
+  });
+</script>
+```
+
+### Via npm (with bundler)
+
+```bash
+npm install graphscript
+```
+
+```typescript
+import { GraphScript, loadMathJax } from 'graphscript';
+
+// Optional: load MathJax for LaTeX formula rendering
+await loadMathJax();
+
+const gs = new GraphScript();
+const results = await gs.render(source);
+document.getElementById('app').innerHTML = results[0].svg;
+```
+
+### Browser API
+
+| Method | Description |
+|--------|-------------|
+| `new GraphScript(options?)` | Create instance |
+| `.render(source, options?)` | Parse + evaluate + render, returns `Promise<RenderResult[]>` |
+| `.parse(source)` | Parse source to AST |
+| `.evaluate(program)` | Execute AST, returns `{ values, traces }` |
+| `.loadMathJax(cdnUrl?)` | Load MathJax from CDN for formula rendering |
+| `.registerFile(path, content)` | Register file in virtual filesystem (for images) |
+
+**RenderResult:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `svg` | `string` | SVG string output |
+| `name` | `string` | Declaration name |
+| `type` | `string` | Declaration type (chart, flow, etc.) |
+| `validation` | `ValidationReport?` | Validation report if applicable |
+
+### With Images
+
+Images in browser use a virtual filesystem. Fetch the image and register it as base64:
+
+```html
+<script type="module">
+  import { GraphScript } from 'graphscript';
+  const gs = new GraphScript();
+
+  const res = await fetch('assets/circuit.png');
+  const buf = await res.arrayBuffer();
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+  gs.registerFile('assets/circuit.png', 'data:image/png;base64,' + b64);
+
+  const results = await gs.render(`
+    diagram vqe
+      image preview src=image("assets/circuit.png") x=10 y=10 w=200 h=100
+  `);
+</script>
+```
+
+### With MathJax (LaTeX Formulas)
+
+```html
+<!-- Option 1: Load MathJax yourself -->
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<!-- Option 2: Let GraphScript load it -->
+<script type="module">
+  import { GraphScript, loadMathJax } from 'graphscript';
+  const gs = new GraphScript();
+  await gs.loadMathJax(); // loads from CDN automatically
+
+  const result = await gs.render(`
+    diagram math
+      formula f value="E = mc^2" x=10 y=10
+  `);
+</script>
+```
+
+> **Note:** Browser output is SVG only. For PNG/JPG conversion, use the CLI or a client-side canvas library.
+
+---
 
 ### Syntax Rules
 
@@ -593,6 +715,9 @@ More examples in the [`examples/`](examples/) directory.
 graph-script/
 ├── src/
 │   ├── cli.ts                 # CLI entry point
+│   ├── browser.ts             # Browser entry point (ESM/UMD)
+│   ├── browser/
+│   │   └── load-mathjax.ts    # MathJax CDN loader
 │   ├── ast/
 │   │   └── types.ts           # AST type definitions
 │   ├── parser/
@@ -611,17 +736,21 @@ graph-script/
 │   │   ├── values.ts          # Runtime values
 │   │   └── builtins.ts        # Built-in functions
 │   ├── renderer/
-│   │   ├── index.ts           # Main renderer
+│   │   ├── index.ts           # Main renderer (Node + browser)
 │   │   ├── common.ts          # Shared utilities
 │   │   ├── chart.ts           # Chart renderer
 │   │   ├── flow.ts            # Flow renderer barrel
 │   │   ├── flow-layout.ts     # Flow layout orchestrator
-│   │   ├── flow-layout-*.ts   # Flow layout modules (options/measure/place/routing/bounds/graph)
+│   │   ├── flow-layout-*.ts   # Flow layout modules
 │   │   ├── flow-render.ts     # Flow SVG renderer
 │   │   ├── diagram.ts         # Diagram renderer
-│   │   ├── diagram/           # Diagram renderer modules (state/tree/shapes/embed)
+│   │   ├── diagram/           # Diagram renderer modules
 │   │   ├── diagram-semantic.ts # Semantic layout barrel
-│   │   ├── diagram-semantic/   # Semantic layout modules (layout/connectors/helpers/types)
+│   │   ├── diagram-semantic/   # Semantic layout modules
+│   │   ├── latex/             # LaTeX rendering
+│   │   │   ├── math-renderer.ts  # MathRenderer interface
+│   │   │   ├── math-node.ts      # Node MathJax adapter
+│   │   │   └── math-browser.ts   # Browser MathJax adapter
 │   │   ├── table.ts           # Table renderer
 │   │   ├── plot3d.ts          # 3D plot renderer
 │   │   ├── scene3d.ts         # 3D scene renderer
@@ -630,17 +759,26 @@ graph-script/
 │   │   ├── page.ts            # Page renderer
 │   │   ├── pseudo.ts          # Pseudocode renderer
 │   │   └── validator/         # Auto-checking validator modules
+│   ├── platform/
+│   │   ├── interface.ts       # Platform abstraction interface
+│   │   ├── node.ts            # Node.js platform (fs/path)
+│   │   └── browser.ts         # Browser platform (virtual FS)
 │   └── tokenizer/
 │       ├── index.ts           # Tokenizer
 │       └── types.ts           # Token types
+├── dist/
+│   ├── cli.js                 # Node CLI (CommonJS)
+│   └── browser/               # Browser bundles (ESM + UMD)
 ├── examples/                  # Example .gs files
 ├── spec/                      # Specifications
 │   ├── INSTRUCTIONS.md        # Spec instructions
 │   └── handoff/               # Session handoffs
 ├── tests/                     # Test files
 ├── SPEC.md                    # Language specification
+├── rollup.config.mjs          # Browser bundler config
+├── tsconfig.json              # Node TypeScript config
+├── tsconfig.browser.json      # Browser TypeScript config
 ├── package.json
-├── tsconfig.json
 └── README.md
 ```
 
@@ -663,7 +801,19 @@ graph-script/
 
 ## API Reference
 
-### Renderer Class
+### Browser (GraphScript Class)
+
+```typescript
+import { GraphScript, loadMathJax } from 'graphscript';
+
+const gs = new GraphScript();
+const results = await gs.render('chart test\n  bar 10, 20, 30');
+// results[0].svg → SVG string
+// results[0].name → "test"
+// results[0].type → "chart"
+```
+
+### Node.js Renderer Class
 
 ```typescript
 import { Renderer } from './renderer';
@@ -674,10 +824,14 @@ const renderer = new Renderer({
   format: 'svg'
 });
 
+// Render to files
 renderer.render(values, traces, options);
+
+// Or get SVG strings (works in both Node and browser)
+const results = await renderer.renderToString(values, traces, options);
 ```
 
-### Parser Class
+### Node.js Parser Class
 
 ```typescript
 import { Parser } from './parser';
@@ -789,8 +943,17 @@ See [spec/001-auto-checking-validator.md](spec/001-auto-checking-validator.md) f
 ### Scripts
 
 ```bash
-# Build TypeScript
+# Build TypeScript (Node CLI)
 npm run build
+
+# Build browser bundle (ESM + UMD)
+npm run build:browser
+
+# Build both
+npm run build:all
+
+# Build browser + minified
+npm run build:browser:min
 
 # Watch mode
 npm run watch
@@ -852,22 +1015,28 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for ful
 - [x] Diagram renderer
 - [x] Page composition
 - [x] SVG export
-- [ ] Auto-checking validator (in progress)
+- [x] PNG/JPG export (CLI)
+- [x] Auto-checking validator
+- [x] Browser / CDN support (ESM + UMD)
+- [x] MathJax adapter (Node + Browser)
+- [x] LaTeX formula rendering
 
 ### v0.2 (Planned)
 
-- [ ] ERD renderer
-- [ ] Infrastructure diagrams (AWS)
+- [ ] ERD renderer improvements
+- [ ] Infrastructure diagrams (AWS) improvements
 - [ ] Improved layout engine
 - [ ] Code formatter
 - [ ] LSP support
+- [ ] React/Vue/Svelte component wrapper
 
 ### v0.3 (Future)
 
-- [ ] 3D plot renderer
-- [ ] 3D scene renderer
+- [ ] 3D plot renderer improvements
+- [ ] 3D scene renderer improvements
 - [ ] GLB/JSON export
 - [ ] Animation primitives
+- [ ] Browser PNG/JPG export (Canvas API)
 
 ### v0.4 (Future)
 
@@ -895,7 +1064,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 | Algorithm Traces | ✅ Selesai |
 | Table Renderer | ✅ Selesai |
 | Diagram Renderer | ✅ Selesai |
-| Auto-Checking Validator | 🔄 In Progress |
+| LaTeX Formula (MathJax) | ✅ Selesai |
+| SVG/PNG/JPG Export | ✅ Selesai |
+| Auto-Checking Validator | ✅ Selesai |
+| Browser / CDN (ESM + UMD) | ✅ Selesai |
 | ERD Renderer | 📋 Planned |
 | Infra Diagrams | 📋 Planned |
 | 3D Renderer | 📋 Planned |

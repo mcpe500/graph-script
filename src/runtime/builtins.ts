@@ -1,5 +1,11 @@
-import * as path from 'path';
 import { GSValue, GSFunction } from './values';
+
+function extname(value: string): string {
+  const dot = value.lastIndexOf('.');
+  if (dot < 0) return '';
+  const slash = value.lastIndexOf('/');
+  return dot > slash ? value.slice(dot) : '';
+}
 
 export function createBuiltins(): Record<string, GSValue> {
   return {
@@ -50,7 +56,7 @@ export function createBuiltins(): Record<string, GSValue> {
     },
     image: (assetPath: GSValue) => {
       const value = typeof assetPath === 'string' ? assetPath : String(assetPath ?? '');
-      const ext = path.extname(value).toLowerCase().replace(/^\./, '');
+      const ext = extname(value);
       return {
         type: 'imageAsset',
         path: value,

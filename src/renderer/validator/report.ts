@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import { getPlatform } from '../../platform/global';
+import { NodePlatform } from '../../platform/node';
 import { MIN_ASSET_WIDTH, MIN_ASSET_HEIGHT } from '../diagram-semantic';
 import { ValidationIssue, ValidationReport, ReadabilityMetrics, MIN_FONT_SIZE, MIN_ELEMENT_SIZE } from './types';
 import { calculateReadabilityScore } from './readability';
@@ -107,15 +107,18 @@ export function writeValidationReport(
   filePath: string,
   declarationName: string
 ): void {
+  const platform = getPlatform();
+  if (!(platform instanceof NodePlatform)) return;
+
   const finalReport = {
     ...report,
     declaration: declarationName,
   };
 
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  const dir = platform.dirname(filePath);
+  if (!platform.fileExists(dir)) {
+    platform.ensureDir(dir);
   }
 
-  fs.writeFileSync(filePath, JSON.stringify(finalReport, null, 2), 'utf-8');
+  platform.writeFile(filePath, JSON.stringify(finalReport, null, 2));
 }

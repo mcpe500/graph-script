@@ -141,6 +141,122 @@ graphscript render examples/hello-chart.gs --format jpg --quality 85
 graphscript render examples/hello-chart.gs --skip-validation
 ```
 
+## 3.1.1 Browser / Frontend usage
+
+GraphScript bisa dipakai langsung di browser melalui CDN atau npm install, seperti Three.js, D3.js, atau Chart.js.
+
+### Via CDN (ESM)
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>GraphScript Demo</title></head>
+<body>
+  <div id="container"></div>
+  <script type="module">
+    import { GraphScript } from 'https://cdn.jsdelivr.net/npm/graphscript/dist/browser/graphscript.esm.js';
+    const gs = new GraphScript();
+    const result = await gs.render(`
+      chart temperature
+        title "Monthly Temperature"
+        bar 30, 35, 28, 40, 38
+    `);
+    document.getElementById('container').innerHTML = result[0].svg;
+  </script>
+</body>
+</html>
+```
+
+### Via CDN (UMD / Script Tag)
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphscript/dist/browser/graphscript.min.js"></script>
+<script>
+  var gs = new GraphScript.GraphScript();
+  gs.render('chart test\n  bar 10, 20, 30').then(function(r) {
+    document.getElementById('container').innerHTML = r[0].svg;
+  });
+</script>
+```
+
+### Via npm
+
+```bash
+npm install graphscript
+```
+
+```typescript
+import { GraphScript, loadMathJax } from 'graphscript';
+await loadMathJax();
+const gs = new GraphScript();
+const results = await gs.render(source);
+document.getElementById('app').innerHTML = results[0].svg;
+```
+
+### Browser API
+
+| Method | Description |
+|--------|-------------|
+| `new GraphScript(options?)` | Buat instance |
+| `.render(source, options?)` | Parse + evaluate + render, return `Promise<RenderResult[]>` |
+| `.parse(source)` | Parse source ke AST |
+| `.evaluate(program)` | Execute AST, return `{ values, traces }` |
+| `.loadMathJax(cdnUrl?)` | Load MathJax dari CDN |
+| `.registerFile(path, content)` | Register file di virtual filesystem |
+
+**RenderResult:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `svg` | `string` | SVG string output |
+| `name` | `string` | Nama declaration |
+| `type` | `string` | Tipe declaration (chart, flow, dll) |
+| `validation` | `object?` | Validation report jika ada |
+
+### Image di browser
+
+Image di browser menggunakan virtual filesystem. Fetch image lalu register sebagai base64:
+
+```html
+<script type="module">
+  import { GraphScript } from 'graphscript';
+  const gs = new GraphScript();
+  const res = await fetch('assets/circuit.png');
+  const buf = await res.arrayBuffer();
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+  gs.registerFile('assets/circuit.png', 'data:image/png;base64,' + b64);
+
+  const results = await gs.render(`
+    diagram vqe
+      image preview src=image("assets/circuit.png") x=10 y=10 w=200 h=100
+  `);
+</script>
+```
+
+### Formula LaTeX di browser
+
+Untuk merender formula LaTeX di browser, MathJax harus tersedia:
+
+**Opsi 1** — Include MathJax sendiri:
+```html
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+```
+
+**Opsi 2** — Biarkan GraphScript load otomatis:
+```html
+<script type="module">
+  import { GraphScript, loadMathJax } from 'graphscript';
+  const gs = new GraphScript();
+  await gs.loadMathJax();
+  const result = await gs.render('diagram math\n  formula f value="E = mc^2" x=10 y=10');
+</script>
+```
+
+> **Catatan:** Output browser hanya SVG. Untuk konversi PNG/JPG, gunakan CLI atau library Canvas di sisi client.
+
+---
+
 ## 3.2 Core syntax `.gs` (umum)
 
 ### A) Aturan dasar
