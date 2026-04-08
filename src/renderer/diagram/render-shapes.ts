@@ -4,6 +4,16 @@ import { loadImageHref, sanitizeId } from './image';
 import { ElementRenderState } from './render-state';
 import { buildTextLineCap, escapeMarkerId, resolveLineEndpoints, resolveNumber, resolveString } from './render-utils';
 
+// Re-export use-case diagram shapes from dedicated module
+export {
+  renderActor,
+  renderUseCase,
+  renderSystemBoundary,
+  renderAssociation,
+  renderInclude,
+  renderExtend,
+} from './render-usecase-shapes';
+
 export async function renderPanelOrBox(state: ElementRenderState): Promise<string> {
   const { x, y, w, h, radius, fill, stroke, strokeWidth, dashAttr, fillOpacityAttr, strokeOpacityAttr, label, subtitle, color, textSize, latexMode, fontFamily, element } = state;
   let svg = `<rect x="${round(x)}" y="${round(y)}" width="${round(w)}" height="${round(h)}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${dashAttr}${fillOpacityAttr}${strokeOpacityAttr}/>`;

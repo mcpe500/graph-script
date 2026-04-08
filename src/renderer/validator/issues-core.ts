@@ -1,10 +1,8 @@
 import { DiagramElement } from '../../ast/types';
 import { GSValue, Trace } from '../../runtime/values';
-import { BoundingBox, ValidationIssue, ValidationSnapshot, MIN_LAYOUT_GAP, EXCESSIVE_GAP_MULTIPLIER } from './types';
+import { BoundingBox, ValidationIssue, ValidationSnapshot, MIN_LAYOUT_GAP, EXCESSIVE_GAP_MULTIPLIER, OVERLAP_TYPES_ALLOWED } from './types';
 import { getBooleanProperty, getNumberProperty, getStringProperty, resolveElementBox, boxGap, verticalGap } from './helpers';
 import { detectOverlaps } from './detection';
-
-const OVERLAP_TYPES_ALLOWED = new Set(['line', 'arrow', 'connector', 'embed']);
 const BOX_LIKE_TYPES = new Set(['panel', 'box', 'callout', 'badge']);
 
 export function collectCoreValidationIssues(
